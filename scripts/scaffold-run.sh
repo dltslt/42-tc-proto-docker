@@ -4,7 +4,18 @@
 set -euo pipefail
 
 RAW_RUN="${1:-}"
-DB="${2:-postgres}"
+DB="${2:-hybrid}"
+
+# Reject retired keyword 'both'
+if [[ "$DB" == "both" ]]; then
+  echo "Error: 'both' has been retired. Use 'DB=hybrid' to provision both PostgreSQL and MongoDB." >&2
+  exit 1
+fi
+
+if [[ "$DB" != "hybrid" && "$DB" != "postgres" && "$DB" != "mongo" && "$DB" != "none" ]]; then
+  echo "Error: Unknown DB value '$DB'. Valid options: hybrid, postgres, mongo, none." >&2
+  exit 1
+fi
 
 # Normalize RUN: accepts 1, 01, 42, run-1, run-01, etc.
 if [[ "$RAW_RUN" =~ ^[0-9]+$ ]]; then
@@ -14,7 +25,7 @@ elif [[ "$RAW_RUN" =~ ^run-([0-9]+)$ ]]; then
   RUN=$(printf "run-%02d" "$NUM")
 else
   echo "Error: Invalid or missing RUN argument '$RAW_RUN'." >&2
-  echo "Usage: make new RUN=1 (or RUN=42, or RUN=run-01) [DB=postgres|mongo|none]" >&2
+  echo "Usage: make new RUN=1 (or RUN=42, or RUN=run-01) [DB=hybrid|postgres|mongo|none]" >&2
   exit 1
 fi
 
@@ -96,7 +107,7 @@ EOF
 echo "Added service '$RUN' (port $PORT:$PORT) to docker-compose.yml."
 
 # 5. Database provisioning (cold-start SQL + live container provisioning)
-if [[ "$DB" == "postgres" ]]; then
+if [[ "$DB" == "postgres" || "$DB" == "hybrid" ]]; then
   SQL_FILE="docker/postgres/init/01-create-databases.sql"
   if [[ -f "$SQL_FILE" ]] && ! grep -q "CREATE DATABASE $DB_NAME;" "$SQL_FILE"; then
     echo "CREATE DATABASE $DB_NAME;" >> "$SQL_FILE"
@@ -124,7 +135,9 @@ if [[ "$DB" == "postgres" ]]; then
   else
     echo "Notice: PostgreSQL container is not running. Database will be created on next volume initialization from $SQL_FILE."
   fi
-elif [[ "$DB" == "mongo" ]]; then
+fi
+
+if [[ "$DB" == "mongo" || "$DB" == "hybrid" ]]; then
   echo "Notice: MongoDB creates collections and databases lazily on first document write."
 fi
 

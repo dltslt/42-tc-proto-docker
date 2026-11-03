@@ -48,6 +48,7 @@ services:
       - pnpm_store:/root/.local/share/pnpm/store
     depends_on:
       - postgres
+      - mongo
 
   # ============================================================================
   # PROTOTYPE BASE TEMPLATE (Profile: template)

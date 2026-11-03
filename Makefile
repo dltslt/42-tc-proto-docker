@@ -25,7 +25,7 @@ init: ## Bootstrap stack after fresh clone (pulls images, seeds DBs, shuts down 
 	@docker compose --profile all down
 	@echo "==> Initialization complete. Run 'make up RUN=<n>' to start a prototype."
 
-new: ## Scaffold a new prototype run (Usage: make new RUN=1 or make new RUN=42 [DB=postgres|mongo])
+new: ## Scaffold a new prototype run (Usage: make new RUN=1 or make new RUN=42 [DB=hybrid|postgres|mongo])
 	@bash ./scripts/scaffold-run.sh "$(RUN)" "$(DB)"
 
 up: ## Start a prototype run or template (Usage: make up RUN=1 or make up RUN=template)
