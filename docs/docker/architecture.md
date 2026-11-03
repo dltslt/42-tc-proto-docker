@@ -1,0 +1,158 @@
+# Container Architecture & Service Topology
+
+This guide explains the orchestration architecture of `tc-proto-docker`. It bridges low-level systems programming concepts (Linux processes, namespaces, and system calls) with Docker Compose service orchestration.
+
+---
+
+## 1. Containers from a Systems Perspective (C/C++ Perspective)
+
+In traditional C and C++ development, an application compiles into a native ELF executable that executes directly in the host user space. Isolation, if desired, is implemented manually using POSIX system calls (`fork()`, `chroot()`, `clone()`, `unshare()`).
+
+A Docker container is **not** a hardware virtual machine (like QEMU or VMware). There is no hypervisor running a separate guest kernel. Instead, a container is **a standard Linux process executing directly on the host kernel**, restricted by two kernel primitives:
+
+1. **Linux Namespaces (Virtualizing System Resources)**:
+   - **`pid`**: The container process perceives itself as PID 1, completely isolated from host processes.
+   - **`net`**: The container receives its own private loopback interface (`127.0.0.1`), routing table, and virtual ethernet pair (`veth`) attached to a Docker bridge network.
+   - **`mnt`**: The container filesystem root (`/`) is decoupled from the host root via `pivot_root`, viewing only container image layers and mounted volumes.
+   - **`ipc`**: System V IPC and POSIX message queues/shared memory segments are isolated.
+   - **`uts`**: Hostname and domain name are private to the container (e.g. hostname `run-01`).
+
+2. **Control Groups (`cgroups`)**:
+   - Kernel subsystems that meter and limit resource consumption (CPU scheduling shares, memory limits, block I/O).
+
+```text
++-------------------------------------------------------------------------+
+|                              HOST KERNEL                                |
+|  [Namespaces: pid, net, mnt, ipc, uts]  [Control Groups: cpu, memory]   |
++------------------------------------+------------------------------------+
+| Docker Bridge Network (tc-proto)   | Host Filesystem                    |
+|  +------------------------------+  |  +------------------------------+  |
+|  | postgres:5432                |  |  | ./prototypes/run-01/         |  |
+|  | mongo:27017                  |  |  | ./docker/postgres/init/      |  |
+|  | run-01 (port 3001)           |  |  | .env                         |  |
+|  +------------------------------+  |  +------------------------------+  |
++------------------------------------+------------------------------------+
+```
+
+---
+
+## 2. Infrastructure Topology
+
+The prototyping platform consists of shared database engines and on-demand Nuxt 4 prototype containers communicating over an internal Docker bridge network:
+
+```mermaid
+flowchart TD
+    subgraph Host["Host Environment (Developer Machine)"]
+        Browser["Web Browser (localhost:3001..3014)"]
+        HostCLI["Developer Shell (make, git, docker)"]
+        HostPG["Host Database Client (localhost:5433)"]
+        HostMongo["Host Mongo Client (localhost:27017)"]
+    end
+
+    subgraph DockerNet["Docker Bridge Network (Internal DNS)"]
+        subgraph Databases["Centralized Database Engines"]
+            PG["postgres:5432 (PostgreSQL 16 Alpine)"]
+            MG["mongo:27017 (MongoDB 7)"]
+        end
+
+        subgraph Prototypes["Active Prototype Containers (Nuxt 4 / Nitro)"]
+            TPL["template (port 3000)"]
+            R01["run-01 (port 3001)"]
+            R02["run-02 (port 3002)"]
+            RNN["run-NN (port 30NN)"]
+        end
+    end
+
+    Browser -->|HTTP / WebSocket HMR| R01
+    Browser -->|HTTP / WebSocket HMR| R02
+    HostCLI -->|make / docker compose| DockerNet
+    HostPG -->|Port Forward 5433:5432| PG
+    HostMongo -->|Port Forward 27017:27017| MG
+
+    R01 -->|Internal TCP| PG
+    R01 -->|Internal TCP| MG
+    R02 -->|Internal TCP| PG
+    R02 -->|Internal TCP| MG
+```
+
+---
+
+## 3. Service Inheritance (`base-proto`) in Docker Compose
+
+To avoid duplicating 40 lines of container configuration across 14+ prototype runs, `docker-compose.yml` uses Docker Compose's `extends:` mechanism.
+
+### The Prototype Blueprint (`base-proto`)
+
+```yaml
+services:
+  base-proto:
+    build:
+      context: .
+      dockerfile: docker/nuxt/Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - pnpm_store:/pnpm-store
+      - /app/node_modules
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - mongo
+```
+
+- **`build.context: .`**: Builds an image containing Node.js, pnpm, and necessary build tools from `docker/nuxt/Dockerfile`.
+- **`env_file: .env`**: Injects global environment variables (database credentials, default hostnames) into the container environment.
+- **`volumes`**:
+  - `pnpm_store:/pnpm-store`: Named volume mounting the shared pnpm content-addressable storage.
+  - `/app/node_modules`: Anonymous volume masking container dependencies from host filesystem.
+- **`depends_on`**: Ensures database engines are initialized and healthy before prototype containers start.
+
+### Concrete Prototype Definition
+
+When scaffolding a new run (e.g., `run-01`), the generator appends a minimal definition to `docker-compose.yml`:
+
+```yaml
+  run-01:
+    extends:
+      service: base-proto
+    profiles: ["run-01", "all"]
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - DB_NAME=proto_run_01
+    volumes:
+      - ./prototypes/run-01:/app
+```
+
+This design guarantees that each prototype inherits identical runtime dependencies, environment contracts, and network settings while remaining completely isolated in terms of source code (`./prototypes/run-01`), listening port (`3001`), and logical database (`proto_run_01`).
+
+---
+
+## 4. Compose Profiles for Selective Orchestration
+
+In a repository designed for up to 14 distinct prototypes, starting all containers simultaneously would consume significant system memory (each Node process holding ~100-200MB RSS).
+
+Docker Compose **Profiles** allow selective activation:
+
+1. **Selective Boot**:
+   ```bash
+   # Starts only postgres, mongo, and run-01
+   docker compose --profile run-01 up -d
+   # Or via Makefile:
+   make up RUN=1
+   ```
+2. **Global Boot (All Prototypes)**:
+   ```bash
+   # Starts all prototypes simultaneously
+   docker compose --profile all up -d
+   # Or via Makefile:
+   make up-all
+   ```
+3. **Template Blueprint Boot**:
+   ```bash
+   # Starts the template blueprint on port 3000
+   make up RUN=template
+   ```
+Containers that do not match the active profile are ignored by Compose, conserving host CPU cycles and memory.
+
