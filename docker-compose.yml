@@ -33,7 +33,10 @@ services:
   # Corepack Note: Node's built-in Corepack reads packageManager from package.json
   # (e.g. pnpm@12.16.1) and dynamically installs/runs that exact pinned binary.
   # Using node:22-slim (Debian glibc) prevents musl/glibc native linker conflicts.
+  # Abstract service: profiles: ["base"] keeps Compose from booting an empty container
+  # for this template during normal `up` commands; child runs inherit it via extends.
   base-proto:
+    profiles: ["base"]
     image: node:22-slim
     working_dir: /app
     command: sh -c "corepack enable && pnpm install && pnpm dev --host 0.0.0.0"
