@@ -8,11 +8,19 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "db:seed": "tsx server/seed.ts"
   },
   "dependencies": {
+    "mongodb": "^6.10.0",
     "nuxt": "^4.6.3",
+    "pg": "^8.13.1",
     "vue": "^3.5.44",
     "vue-router": "^5.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2"
   }
 }
