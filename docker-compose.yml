@@ -1,0 +1,64 @@
+services:
+  # ============================================================================
+  # DATABASE SERVICES (Central Shared Engines)
+  # ============================================================================
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      # Host port maps to 5433 by default to avoid conflicts with existing host Postgres
+      - "${POSTGRES_PORT:-5433}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lerch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secretpassword}
+      POSTGRES_DB: default_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+
+  mongo:
+    image: mongo:7-jammy
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-lerch}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-secretpassword}
+    volumes:
+      - mongo_data:/data/db
+
+  # ============================================================================
+  # BASE PROTOTYPE DEFINITION (Inherited by all prototype runs)
+  # ============================================================================
+  # Corepack Note: Node's built-in Corepack reads packageManager from package.json
+  # (e.g. pnpm@12.16.1) and dynamically installs/runs that exact pinned binary.
+  # Using node:22-slim (Debian glibc) prevents musl/glibc native linker conflicts.
+  base-proto:
+    image: node:22-slim
+    working_dir: /app
+    command: sh -c "corepack enable && pnpm install && pnpm dev --host 0.0.0.0"
+    volumes:
+      - /app/node_modules
+      - /app/.nuxt
+      - pnpm_store:/root/.local/share/pnpm/store
+    depends_on:
+      - postgres
+
+  # ============================================================================
+  # PROTOTYPE BASE TEMPLATE (Profile: template)
+  # ============================================================================
+  template:
+    extends:
+      service: base-proto
+    profiles: ["template"]
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./prototypes/template:/app
+    env_file:
+      - ./prototypes/template/.env
+
+volumes:
+  postgres_data:
+  mongo_data:
+  pnpm_store:
