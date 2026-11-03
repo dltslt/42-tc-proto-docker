@@ -18,10 +18,10 @@ It is not intended as a generic tool to directly assist every 42 student, but ra
 │   ├── README.md        master documentation index and curriculum guide
 │   ├── docker/          platform and container architecture deep-dives
 │   ├── template/        starter documentation templates for prototype runs
-│   └── run-XX/          documentation for prototype run-XX (design.md, NOTES.md, etc.)
+│   └── run-XXX/         documentation for prototype run-XXX (design.md, NOTES.md, etc.)
 ├── prototypes/
 │   ├── template/        baseline Nuxt 4 prototype blueprint; do not build here
-│   └── run-XX/          isolated prototype runs (run-01/, run-02/, etc.)
+│   └── run-XXX/         isolated prototype runs (run-100/, run-101/, etc.)
 ├── docker/              database initialization scripts and container configs
 ├── scripts/             scaffolding and control plane automation scripts
 └── .agents/             agent skills for git commits and modern web guidance
@@ -60,28 +60,28 @@ All platform operations are orchestrated through standard `make` targets.
 
 > [!IMPORTANT]
 > **When to use `make init` vs. `make new`:**
-> `make init` is only needed and only takes effect when **existing prototype runs are present** in the repository (e.g. after cloning a repository or branch that already contains `prototypes/run-01/`). It pulls base images, boots the database engines, and batch-seeds every existing prototype before shutting down.
+> `make init` is only needed and only takes effect when **existing prototype runs are present** in the repository (e.g. after cloning a repository or branch that already contains `prototypes/run-100/`). It pulls base images, boots the database engines, and batch-seeds every existing prototype before shutting down.
 >
 > If you are starting fresh with no runs present, there is nothing for `make init` to seed — skip `make init` and jump straight to `make new` below to scaffold your first run.
 
 ### Scaffolding a New Prototype Run (Fresh Clone / New Work)
 
 ```bash
-# 1. Scaffold a new isolated prototype run (e.g. run-01 on port 3001)
-make new RUN=1 DB=hybrid
+# 1. Scaffold a new isolated prototype run (e.g. run-100 on port 3100)
+make new RUN=100 DB=hybrid
 
 # 2. Start the prototype container in detached mode
-make up RUN=1
+make up RUN=100
 
 # 3. Seed the prototype's logical database (executes pnpm run db:seed)
-make seed RUN=1
+make seed RUN=100
 
 # 4. Open in your browser:
-#    http://localhost:3001
+#    http://localhost:3100
 
 # 5. Tail container logs or open an interactive shell
-make logs RUN=1
-make sh RUN=1
+make logs RUN=100
+make sh RUN=100
 
 # 6. Stop running containers cleanly
 make down
@@ -96,7 +96,7 @@ If you just cloned a branch or repository that already contains prototype runs:
 make init
 
 # Then start whichever prototype you want to inspect:
-make up RUN=1
+make up RUN=100
 ```
 
 ### Full Target Reference
@@ -104,14 +104,14 @@ make up RUN=1
 | Target | Description | Example |
 |---|---|---|
 | `make init` | Bootstraps & seeds all existing runs (only needed when runs exist) | `make init` |
-| `make new` | Scaffolds prototype code (`prototypes/`) & docs (`docs/`) | `make new RUN=1 [DB=hybrid\|postgres\|mongo\|none]` |
-| `make up` | Starts a specific prototype container and DB engines | `make up RUN=1` (or `make up RUN=template`) |
+| `make new` | Scaffolds prototype code (`prototypes/`) & docs (`docs/`) | `make new RUN=100 [DB=hybrid\|postgres\|mongo\|none]` |
+| `make up` | Starts a specific prototype container and DB engines | `make up RUN=100` (or `make up RUN=template`) |
 | `make up-all` | Starts all scaffolded prototypes simultaneously | `make up-all` |
-| `make ps` | Lists running containers in the compose stack | `make ps` (or `make ps RUN=1`) |
-| `make seed` | Executes programmatic seeding contract (`server/seed.ts`) | `make seed RUN=1` |
-| `make logs` | Tails stdout/stderr logs for a prototype | `make logs RUN=1` |
+| `make ps` | Lists running containers in the compose stack | `make ps` (or `make ps RUN=100`) |
+| `make seed` | Executes programmatic seeding contract (`server/seed.ts`) | `make seed RUN=100` |
+| `make logs` | Tails stdout/stderr logs for a prototype | `make logs RUN=100` |
 | `make logs-all` | Tails logs across all running prototype containers | `make logs-all` |
-| `make sh` | Opens `/bin/sh` shell inside prototype container | `make sh RUN=1` |
+| `make sh` | Opens `/bin/sh` shell inside prototype container | `make sh RUN=100` |
 | `make down` | Stops all running containers cleanly | `make down` |
 | `make db-reset` | Wipes database volumes and reinitializes fresh engines | `make db-reset` |
 
@@ -119,10 +119,10 @@ make up RUN=1
 
 ## Prototype Documentation Convention
 
-Every prototype run maintains its technical documentation inside `docs/run-XX/`:
-- `docs/run-XX/design.md`: Architecture overview and Mermaid data flow.
-- `docs/run-XX/frontend.md`: UI state management, components, and re-render triggers.
-- `docs/run-XX/backend.md`: Nitro server routes, database schemas, and queries.
-- `docs/run-XX/NOTES.md`: Standard post-mortem summary, findings, cuts, and benchmark timings.
+Every prototype run maintains its technical documentation inside `docs/run-XXX/`:
+- `docs/run-XXX/design.md`: Architecture overview and Mermaid data flow.
+- `docs/run-XXX/frontend.md`: UI state management, components, and re-render triggers.
+- `docs/run-XXX/backend.md`: Nitro server routes, database schemas, and queries.
+- `docs/run-XXX/NOTES.md`: Standard post-mortem summary, findings, cuts, and benchmark timings.
 
 See [`docs/README.md`](docs/README.md) and [`AGENTS.md`](AGENTS.md) for complete guidelines.

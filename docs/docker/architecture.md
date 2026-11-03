@@ -15,7 +15,7 @@ A Docker container is **not** a hardware virtual machine (like QEMU or VMware). 
    - **`net`**: The container receives its own private loopback interface (`127.0.0.1`), routing table, and virtual ethernet pair (`veth`) attached to a Docker bridge network.
    - **`mnt`**: The container filesystem root (`/`) is decoupled from the host root via `pivot_root`, viewing only container image layers and mounted volumes.
    - **`ipc`**: System V IPC and POSIX message queues/shared memory segments are isolated.
-   - **`uts`**: Hostname and domain name are private to the container (e.g. hostname `run-01`).
+   - **`uts`**: Hostname and domain name are private to the container (e.g. hostname `run-100`).
 
 2. **Control Groups (`cgroups`)**:
    - Kernel subsystems that meter and limit resource consumption (CPU scheduling shares, memory limits, block I/O).
@@ -27,9 +27,9 @@ A Docker container is **not** a hardware virtual machine (like QEMU or VMware). 
 +------------------------------------+------------------------------------+
 | Docker Bridge Network (tc-proto)   | Host Filesystem                    |
 |  +------------------------------+  |  +------------------------------+  |
-|  | postgres:5432                |  |  | ./prototypes/run-01/         |  |
+|  | postgres:5432                |  |  | ./prototypes/run-100/        |  |
 |  | mongo:27017                  |  |  | ./docker/postgres/init/      |  |
-|  | run-01 (port 3001)           |  |  | .env                         |  |
+|  | run-100 (port 3100)          |  |  | .env                         |  |
 |  +------------------------------+  |  +------------------------------+  |
 +------------------------------------+------------------------------------+
 ```
@@ -43,7 +43,7 @@ The prototyping platform consists of shared database engines and on-demand Nuxt 
 ```mermaid
 flowchart TD
     subgraph Host["Host Environment (Developer Machine)"]
-        Browser["Web Browser (localhost:3001..3014)"]
+        Browser["Web Browser (localhost:3100..3999)"]
         HostCLI["Developer Shell (make, git, docker)"]
         HostPG["Host Database Client (localhost:5433)"]
         HostMongo["Host Mongo Client (localhost:27017)"]
@@ -57,29 +57,29 @@ flowchart TD
 
         subgraph Prototypes["Active Prototype Containers (Nuxt 4 / Nitro)"]
             TPL["template (port 3000)"]
-            R01["run-01 (port 3001)"]
-            R02["run-02 (port 3002)"]
-            RNN["run-NN (port 30NN)"]
+            R100["run-100 (port 3100)"]
+            R101["run-101 (port 3101)"]
+            RNNN["run-NNN (port 3NNN)"]
         end
     end
 
-    Browser -->|HTTP / WebSocket HMR| R01
-    Browser -->|HTTP / WebSocket HMR| R02
+    Browser -->|HTTP / WebSocket HMR| R100
+    Browser -->|HTTP / WebSocket HMR| R101
     HostCLI -->|make / docker compose| DockerNet
     HostPG -->|Port Forward 5433:5432| PG
     HostMongo -->|Port Forward 27017:27017| MG
 
-    R01 -->|Internal TCP| PG
-    R01 -->|Internal TCP| MG
-    R02 -->|Internal TCP| PG
-    R02 -->|Internal TCP| MG
+    R100 -->|Internal TCP| PG
+    R100 -->|Internal TCP| MG
+    R101 -->|Internal TCP| PG
+    R101 -->|Internal TCP| MG
 ```
 
 ---
 
 ## 3. Service Inheritance (`base-proto`) in Docker Compose
 
-To avoid duplicating 40 lines of container configuration across 14+ prototype runs, `docker-compose.yml` uses Docker Compose's `extends:` mechanism.
+To avoid duplicating 40 lines of container configuration across prototype runs (`run-100` to `run-999`), `docker-compose.yml` uses Docker Compose's `extends:` mechanism.
 
 ### The Prototype Blueprint (`base-proto`)
 
@@ -109,38 +109,38 @@ services:
 
 ### Concrete Prototype Definition
 
-When scaffolding a new run (e.g., `run-01`), the generator appends a minimal definition to `docker-compose.yml`:
+When scaffolding a new run (e.g., `run-100`), the generator appends a minimal definition to `docker-compose.yml`:
 
 ```yaml
-  run-01:
+  run-100:
     extends:
       service: base-proto
-    profiles: ["run-01", "all"]
+    profiles: ["run-100", "all"]
     ports:
-      - "3001:3001"
+      - "3100:3100"
     environment:
-      - PORT=3001
-      - DB_NAME=proto_run_01
+      - PORT=3100
+      - DB_NAME=proto_run_100
     volumes:
-      - ./prototypes/run-01:/app
+      - ./prototypes/run-100:/app
 ```
 
-This design guarantees that each prototype inherits identical runtime dependencies, environment contracts, and network settings while remaining completely isolated in terms of source code (`./prototypes/run-01`), listening port (`3001`), and logical database (`proto_run_01`).
+This design guarantees that each prototype inherits identical runtime dependencies, environment contracts, and network settings while remaining completely isolated in terms of source code (`./prototypes/run-100`), listening port (`3100`), and logical database (`proto_run_100`).
 
 ---
 
 ## 4. Compose Profiles for Selective Orchestration
 
-In a repository designed for up to 14 distinct prototypes, starting all containers simultaneously would consume significant system memory (each Node process holding ~100-200MB RSS).
+In a repository supporting up to 900 distinct prototypes (`run-100` to `run-999`), starting all containers simultaneously would consume significant system memory (each Node process holding ~100-200MB RSS).
 
 Docker Compose **Profiles** allow selective activation:
 
 1. **Selective Boot**:
    ```bash
-   # Starts only postgres, mongo, and run-01
-   docker compose --profile run-01 up -d
+   # Starts only postgres, mongo, and run-100
+   docker compose --profile run-100 up -d
    # Or via Makefile:
-   make up RUN=1
+   make up RUN=100
    ```
 2. **Global Boot (All Prototypes)**:
    ```bash

@@ -40,7 +40,7 @@ docs/
 │   ├── frontend.md
 │   ├── backend.md
 │   └── NOTES.md
-└── run-XX/                        # Dedicated documentation for prototype run-XX
+└── run-XXX/                        # Dedicated documentation for prototype run-XXX
     ├── design.md                  # High-level architecture and Mermaid data flow
     ├── frontend.md                # UI state management, components, and re-render triggers
     ├── backend.md                 # Server endpoints, database queries, and payload schemas
@@ -49,7 +49,7 @@ docs/
 
 ### Prototype Documentation Contracts
 
-Every prototype run (e.g. `prototypes/run-01/`) has a matching documentation directory (`docs/run-01/`). When an agent or developer works on a prototype, they must maintain the four canonical documents:
+Every prototype run (e.g. `prototypes/run-100/`) has a matching documentation directory (`docs/run-100/`). When an agent or developer works on a prototype, they must maintain the four canonical documents:
 
 1. **`design.md`**: High-level architectural narrative with a Mermaid flowchart showing the complete request/response data flow:
    `Host Browser -> Nuxt SSR/Client -> Nitro API -> Database Engine`.

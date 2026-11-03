@@ -6,7 +6,7 @@ This guide explains how `tc-proto-docker` isolates and optimizes Node.js depende
 
 ## 1. Why Host and Container Cannot Share `node_modules`
 
-In a naive Docker configuration, developers often attempt to bind-mount the entire project directory (`./prototypes/run-01:/app`) including `node_modules`. In a C/C++ or systems environment, this is equivalent to compiling an object file on macOS and attempting to dynamically link it on a Linux system with a different standard C library. It fails immediately.
+In a naive Docker configuration, developers often attempt to bind-mount the entire project directory (`./prototypes/run-100:/app`) including `node_modules`. In a C/C++ or systems environment, this is equivalent to compiling an object file on macOS and attempting to dynamically link it on a Linux system with a different standard C library. It fails immediately.
 
 Here is why `node_modules` must never be shared between the host and container:
 
@@ -39,16 +39,16 @@ services:
       - pnpm_store:/pnpm-store
       - /app/node_modules        # Anonymous volume (mask)
   
-  run-01:
+  run-100:
     volumes:
-      - ./prototypes/run-01:/app # Host bind mount
+      - ./prototypes/run-100:/app # Host bind mount
 ```
 
 ### How the Linux VFS Mount Table Resolves This
 
 In the Linux Virtual Filesystem (VFS), mounts are organized in a hierarchical tree. When multiple filesystems mount to overlapping directory paths, the most specific (deepest) mount point wins:
 
-1. **Host Bind Mount (`./prototypes/run-01:/app`)**:
+1. **Host Bind Mount (`./prototypes/run-100:/app`)**:
    The developer's host directory is mounted at `/app`. Any changes made in an IDE on the host immediately reflect inside `/app` in the container.
 2. **Anonymous Volume (`/app/node_modules`)**:
    Docker mounts an isolated, container-managed filesystem directly over `/app/node_modules`.
@@ -56,7 +56,7 @@ In the Linux Virtual Filesystem (VFS), mounts are organized in a hierarchical tr
 ```text
 Host Filesystem                    Container VFS Hierarchy
 ----------------                   ------------------------
-./prototypes/run-01/               /app/  (Bind mount: sees host files)
+./prototypes/run-100/              /app/  (Bind mount: sees host files)
   ├── app/                           ├── app/
   ├── server/                        ├── server/
   ├── package.json                   ├── package.json
@@ -92,7 +92,7 @@ Named Docker Volume: pnpm_store (/pnpm-store)
 [ Inode #849201: vue@3.5.13/dist/vue.runtime.esm-bundler.js ]
           ^                                 ^
           | (hard link)                     | (hard link)
-Container: run-01                           Container: run-02
+Container: run-100                           Container: run-101
 /app/node_modules/.pnpm/vue@3.5.13/       /app/node_modules/.pnpm/vue@3.5.13/
 ```
 
@@ -113,7 +113,7 @@ volumes:
 ```
 
 Because `pnpm_store` is shared across all prototype containers:
-- Packages downloaded during the template build or by `run-01` are immediately available locally to `run-02` through `run-14`.
+- Packages downloaded during the template build or by `run-100` are immediately available locally to `run-101` through `run-999`.
 - Scaffolding and starting new prototypes is near-instantaneous.
 - Disk usage across the entire fleet scales by delta packages rather than full dependency trees.
 

@@ -16,10 +16,10 @@ A prototype is also a lesson. The team and readers learned software engineering 
 │   ├── README.md        master documentation index and curriculum guide
 │   ├── docker/          platform and container architecture deep-dives
 │   ├── template/        starter documentation templates for prototype runs
-│   └── run-XX/          documentation for prototype run-XX (design.md, NOTES.md, etc.)
+│   └── run-XXX/         documentation for prototype run-XXX (design.md, NOTES.md, etc.)
 ├── prototypes/
 │   ├── template/        the baseline Nuxt app every prototype starts from; do not build here
-│   └── run-XX/          isolated prototype runs (run-01/, run-02/, etc.)
+│   └── run-XXX/         isolated prototype runs (run-100/, run-101/, etc.)
 ├── docker/              database initialization scripts and container configs
 ├── scripts/             control plane and scaffolding automation scripts
 └── .agents/             agent skills for git commits and modern web guidance
@@ -40,7 +40,7 @@ Unlike a compiled C binary where all code executes in a single local process, a 
 - **Universal / SSR (Vue components, `<script setup>`)**: Executes **both** on the server (to pre-render initial HTML) and then in the browser (to "hydrate" interactive state). Never use server-only or browser-only APIs in universal code without checking the environment (`import.meta.server` or `import.meta.client`).
 - **Container vs. Host Network**:
   - Inside the Docker bridge network, services communicate using internal container hostnames and default ports (e.g. `postgres:5432`, `mongo:27017`).
-  - Developers and browsers on the host access prototypes via mapped ports (`http://localhost:3001` for `run-01`, `3002` for `run-02`).
+  - Developers and browsers on the host access prototypes via mapped ports (`http://localhost:3100` for `run-100`, `3101` for `run-101`).
   - Host database tools connect to PostgreSQL on port `5433` (mapped from container `5432` to avoid host conflicts) and MongoDB on port `27017`.
 
 ### 2. De-mystifying the "Magic" (Implicit Mechanics)
@@ -98,14 +98,14 @@ Database services run centrally in Docker Compose:
 - **PostgreSQL 16 Alpine**: Service `postgres:5432` (host port `5433`).
 - **MongoDB 7**: Service `mongo:27017` (host port `27017`).
 
-Individual prototypes inherit global credentials from the root `.env` via `base-proto`. Inside each prototype run, connection URLs are dynamically assembled using `process.env.DB_NAME` (e.g. `proto_run_01`):
+Individual prototypes inherit global credentials from the root `.env` via `base-proto`. Inside each prototype run, connection URLs are dynamically assembled using `process.env.DB_NAME` (e.g. `proto_run_100`):
 - **PostgreSQL**: `postgresql://${DB_USER}:${DB_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${DB_NAME}`
 - **MongoDB**: `mongodb://${DB_USER}:${DB_PASSWORD}@${MONGO_HOST}:${MONGO_PORT}/${DB_NAME}?authSource=admin`
 
 ### The Programmatic Seeding Contract (`pnpm db:seed`)
 Every prototype implements `package.json` with `"db:seed": "tsx server/seed.ts"`. Seeding is invoked via:
 ```bash
-make seed RUN=1    # Executes 'pnpm run db:seed' inside container run-01
+make seed RUN=100    # Executes 'pnpm run db:seed' inside container run-100
 ```
 The seed script must be idempotent: creating schemas/collections if missing and inserting baseline fixtures safely.
 
@@ -139,8 +139,8 @@ Read these, in this order:
 3. The brief the prompt names under `briefs/`. Where it and this file disagree, the brief wins.
 
 **Prototype Isolation & Working Directory Boundaries:**
-- **Code Directory**: Write prototype code **strictly** inside `prototypes/<run-dir>/` (e.g. `prototypes/run-01/`).
-- **Documentation Directory**: Write prototype documentation **strictly** inside `docs/<run-dir>/` (e.g. `docs/run-01/`).
+- **Code Directory**: Write prototype code **strictly** inside `prototypes/<run-dir>/` (e.g. `prototypes/run-100/`).
+- **Documentation Directory**: Write prototype documentation **strictly** inside `docs/<run-dir>/` (e.g. `docs/run-100/`).
 - Do not edit `prototypes/template/`, `docs/template/`, `briefs/`, `AGENTS.md`, `README.md`, `PROMPT.md`, or other prototype directories.
 - Do not inspect, search, or diff any other prototype directory. Search only inside your designated run and docs directories. An empty "Findings from earlier runs" section in a brief stays empty unless explicitly filled by hand.
 
@@ -208,10 +208,10 @@ git add prototypes/<run-directory> docs/<run-directory>
 git commit -m "<type>(<run-directory>,<scope>): <what this chunk does>" -- prototypes/<run-directory> docs/<run-directory>
 ```
 
-For a prototype in `run-06`:
+For a prototype in `run-106`:
 ```bash
-git add prototypes/run-06 docs/run-06
-git commit -m "feat(run-06,ui): render kanban board columns" -- prototypes/run-06 docs/run-06
+git add prototypes/run-106 docs/run-106
+git commit -m "feat(run-106,ui): render kanban board columns" -- prototypes/run-106 docs/run-106
 ```
 
 #### Why this matters:

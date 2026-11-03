@@ -35,24 +35,24 @@ make init
 5. Shuts down containers cleanly.
 
 > [!NOTE]
-> `make init` is only needed when the repository already contains scaffolded prototype runs (e.g. after cloning a repository or branch that contains `run-01/`). If starting fresh with no runs present, there are no databases to seed — skip `make init` and proceed directly to `make new RUN=1`.
+> `make init` is only needed when the repository already contains scaffolded prototype runs (e.g. after cloning a repository or branch that contains `run-100/`). If starting fresh with no runs present, there are no databases to seed — skip `make init` and proceed directly to `make new RUN=100`.
 
 ---
 
 ### `make new`
 Scaffolds a new, isolated prototype run.
 ```bash
-make new RUN=1 [DB=hybrid|postgres|mongo|none]
+make new RUN=100 [DB=hybrid|postgres|mongo|none]
 ```
 - **Arguments**:
-  - `RUN`: Number or identifier (`1`, `01`, `run-1`, `run-01`).
+  - `RUN`: Number or identifier (`100`, `run-100`, etc., range `100..999`).
   - `DB`: (Optional, default `hybrid`). Database provisioning mode (`hybrid`, `postgres`, `mongo`, `none`).
 - **Actions Performed**:
-  1. Computes deterministic external port: `PORT = 3000 + N` (e.g., `RUN=1` -> `3001`).
-  2. Copies `prototypes/template/` into `prototypes/run-XX/` (excluding build artifacts and `.env`).
-  3. Copies `docs/template/` into `docs/run-XX/` to initialize run documentation.
-  4. Creates `prototypes/run-XX/.env` with `PORT` and `DB_NAME`.
-  5. Injects the new service into `docker-compose.yml` with `extends: base-proto` and profile `run-XX`.
+  1. Computes deterministic external port: `PORT = 3000 + N` (e.g., `RUN=100` -> `3100`).
+  2. Copies `prototypes/template/` into `prototypes/run-XXX/` (excluding build artifacts and `.env`).
+  3. Copies `docs/template/` into `docs/run-XXX/` to initialize run documentation.
+  4. Creates `prototypes/run-XXX/.env` with `PORT` and `DB_NAME`.
+  5. Injects the new service into `docker-compose.yml` with `extends: base-proto` and profile `run-XXX`.
   6. Provisions the logical database dynamically on the running PostgreSQL instance and updates `docker/postgres/init/01-create-databases.sql`.
 
 ---
@@ -60,11 +60,11 @@ make new RUN=1 [DB=hybrid|postgres|mongo|none]
 ### `make up`
 Starts a specific prototype container and its database dependencies.
 ```bash
-make up RUN=1
+make up RUN=100
 # Or start the template reference container:
 make up RUN=template
 ```
-- Activates Docker Compose profile `run-XX`.
+- Activates Docker Compose profile `run-XXX`.
 - Automatically starts `postgres` and `mongo` if not already running.
 - Runs detached in the background.
 
@@ -83,7 +83,7 @@ make up-all
 Lists running containers across the entire Docker Compose stack or targets a specific prototype.
 ```bash
 make ps             # Lists all active containers (PostgreSQL, MongoDB, active prototypes)
-make ps RUN=1       # Checks container status for run-01
+make ps RUN=100     # Checks container status for run-100
 ```
 - Uses `docker compose --profile "*"` to inspect all profiled services and shared engines.
 
@@ -92,7 +92,7 @@ make ps RUN=1       # Checks container status for run-01
 ### `make seed`
 Executes the programmatic database seeding contract inside the prototype container.
 ```bash
-make seed RUN=1
+make seed RUN=100
 # Or seed the template:
 make seed RUN=template
 ```
@@ -104,7 +104,7 @@ make seed RUN=template
 ### `make logs` & `make logs-all`
 Tails stdout and stderr logs from running containers.
 ```bash
-make logs RUN=1     # Follows logs for run-01
+make logs RUN=100   # Follows logs for run-100
 make logs-all       # Follows logs across all running prototype containers
 ```
 
@@ -113,9 +113,9 @@ make logs-all       # Follows logs across all running prototype containers
 ### `make sh`
 Spawns an interactive shell inside a running prototype container.
 ```bash
-make sh RUN=1
+make sh RUN=100
 ```
-- Opens `/bin/sh` inside `/app` in container `run-01` for debugging.
+- Opens `/bin/sh` inside `/app` in container `run-100` for debugging.
 
 ---
 
@@ -150,7 +150,7 @@ Every prototype repository must provide a self-healing, automated seed script de
 ```
 
 ### The Idempotency Contract
-A seed script must be **idempotent**: running `make seed RUN=XX` multiple times must not produce duplicate records or database errors.
+A seed script must be **idempotent**: running `make seed RUN=XXX` multiple times must not produce duplicate records or database errors.
 
 1. **Schema Verification**:
    - For PostgreSQL: Execute `CREATE TABLE IF NOT EXISTS ...` or verify table schemas before inserting.
@@ -171,21 +171,21 @@ Developers can inspect database state directly using container CLIs or host GUI 
 ### PostgreSQL Direct Access
 - **Via Docker Container CLI**:
   ```bash
-  docker compose exec postgres psql -U lerch -d proto_run_01
+  docker compose exec postgres psql -U lerch -d proto_run_100
   ```
 - **Via Host Client (GUI / Local psql)**:
   Connect to `localhost:5433` (note host port `5433`):
   - **Host**: `localhost`
   - **Port**: `5433`
-  - **Database**: `proto_run_01` (or `default_db`)
+  - **Database**: `proto_run_100` (or `default_db`)
   - **User**: `lerch`
   - **Password**: `secretpassword`
 
 ### MongoDB Direct Access
 - **Via Docker Container CLI**:
   ```bash
-  docker compose exec mongo mongosh -u lerch -p secretpassword --authenticationDatabase admin proto_run_01
+  docker compose exec mongo mongosh -u lerch -p secretpassword --authenticationDatabase admin proto_run_100
   ```
 - **Via Host Client (Compass / mongosh)**:
-  Connect to `mongodb://lerch:secretpassword@localhost:27017/proto_run_01?authSource=admin`.
+  Connect to `mongodb://lerch:secretpassword@localhost:27017/proto_run_100?authSource=admin`.
 

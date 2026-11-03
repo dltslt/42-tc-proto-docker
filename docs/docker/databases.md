@@ -51,11 +51,11 @@ In `tc-proto-docker`, credentials and connection strings are **dynamically assem
        - .env
    ```
    Every prototype automatically inherits these database credentials inside its container environment.
-3. **Prototype Scaffolding (`prototypes/run-XX/.env`)**:
+3. **Prototype Scaffolding (`prototypes/run-XXX/.env`)**:
    Individual prototype runs specify only what makes them unique:
    ```env
-   PORT=3001
-   DB_NAME=proto_run_01
+   PORT=3100
+   DB_NAME=proto_run_100
    ```
 4. **Dynamic Assembly in Node / Nitro**:
    In `server/seed.ts` (and application database utilities), connection strings are constructed dynamically from the inherited environment:
@@ -76,7 +76,7 @@ In `tc-proto-docker`, credentials and connection strings are **dynamically assem
    ```
 
 **Benefits**:
-- Changing the database password in the root `.env` updates all 14 prototypes immediately.
+- Changing the database password in the root `.env` updates all running prototypes immediately.
 - Prototypes can never accidentally commit secrets or mismatched credentials to source control.
 - If an agent or cloud deploy provides an explicit `POSTGRES_URL` or `MONGO_URL`, the fallback priority honors the explicit variable.
 
@@ -91,14 +91,14 @@ The PostgreSQL container's entrypoint script explicitly checks if the database d
 - If the directory is empty, it runs `initdb` and executes all scripts in `/docker-entrypoint-initdb.d/`.
 - **If the directory already contains initialized database files, the scripts in `/docker-entrypoint-initdb.d/` are completely ignored.**
 
-If a developer runs `make up` (creating the shared volume), and later runs `make new RUN=02`, simply appending `CREATE DATABASE proto_run_02;` to the initialization SQL script will **not** create the database, because PostgreSQL is already initialized.
+If a developer runs `make up` (creating the shared volume), and later runs `make new RUN=102`, simply appending `CREATE DATABASE proto_run_102;` to the initialization SQL script will **not** create the database, because PostgreSQL is already initialized.
 
 ### The Dual-Action Solution in `scaffold-run.sh`
 
 To guarantee seamless provisioning whether the stack is cold or already running, `scripts/scaffold-run.sh` performs two actions:
 
 1. **Cold-Start Persistence**:
-   Appends `CREATE DATABASE proto_run_XX;` to `docker/postgres/init/01-create-databases.sql`. If the entire stack is destroyed and recreated (`make db-reset`), all databases are recreated on the fresh volume.
+   Appends `CREATE DATABASE proto_run_XXX;` to `docker/postgres/init/01-create-databases.sql`. If the entire stack is destroyed and recreated (`make db-reset`), all databases are recreated on the fresh volume.
 2. **Live Dynamic Provisioning**:
    Checks if the PostgreSQL container is currently running via `docker compose ps`. If active, it issues an immediate `CREATE DATABASE` query directly over the container control plane:
    ```bash
@@ -120,10 +120,10 @@ Unlike PostgreSQL, MongoDB does not require an explicit `CREATE DATABASE` comman
 When scaffolding a run via `make new`, developers select one of four provisioning modes:
 
 ```bash
-make new RUN=1 DB=hybrid    # Provisions both PostgreSQL and MongoDB (Default)
-make new RUN=2 DB=postgres  # Provisions only PostgreSQL (pure SQL benchmark)
-make new RUN=3 DB=mongo     # Provisions only MongoDB (pure document benchmark)
-make new RUN=4 DB=none      # Pure client-side or mocked memory prototype
+make new RUN=100 DB=hybrid    # Provisions both PostgreSQL and MongoDB (Default)
+make new RUN=101 DB=postgres  # Provisions only PostgreSQL (pure SQL benchmark)
+make new RUN=102 DB=mongo     # Provisions only MongoDB (pure document benchmark)
+make new RUN=103 DB=none      # Pure client-side or mocked memory prototype
 ```
 
 > [!WARNING]

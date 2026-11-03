@@ -15,14 +15,14 @@ In Docker, two distinct network namespaces are involved:
 When Docker Compose defines:
 ```yaml
 ports:
-  - "3001:3001"
+  - "3100:3100"
 ```
-The Docker daemon configures Linux kernel **NAT (Network Address Translation)** rules using `iptables` (or launches a user-space `docker-proxy` process). Any TCP SYN packet arriving at host socket `0.0.0.0:3001` is rewritten and forwarded across the virtual bridge to the container socket `172.18.0.X:3001`.
+The Docker daemon configures Linux kernel **NAT (Network Address Translation)** rules using `iptables` (or launches a user-space `docker-proxy` process). Any TCP SYN packet arriving at host socket `0.0.0.0:3100` is rewritten and forwarded across the virtual bridge to the container socket `172.18.0.X:3100`.
 
 ```text
 [ Developer Browser ]
       |
-      | Connects to http://localhost:3001
+      | Connects to http://localhost:3100
       v
 [ Host OS Network Stack ]
       |
@@ -30,12 +30,12 @@ The Docker daemon configures Linux kernel **NAT (Network Address Translation)** 
       v
 [ Docker Bridge (veth) ]
       |
-      | Forwards to 172.18.0.4:3001
+      | Forwards to 172.18.0.4:3100
       v
-[ Container: run-01 ]
+[ Container: run-100 ]
       |
-      +--> Nitro HTTP Server (listening on 0.0.0.0:3001)
-      +--> Vite HMR WebSocket Server (listening on 0.0.0.0:3001)
+      +--> Nitro HTTP Server (listening on 0.0.0.0:3100)
+      +--> Vite HMR WebSocket Server (listening on 0.0.0.0:3100)
 ```
 
 ---
@@ -49,9 +49,9 @@ The Docker daemon configures Linux kernel **NAT (Network Address Translation)** 
 | `postgres` | `5432` | `5433` (via `$HOST_POSTGRES_PORT`) | Avoids conflict with local PostgreSQL daemons running on host `5432` |
 | `mongo` | `27017` | `27017` | Standard MongoDB port mapped 1:1 for host GUI access (Compass) |
 | `template` | `3000` | `3000` | Baseline blueprint reference |
-| `run-01` | `3001` | `3001` | Prototype run 1 (`3000 + 1`) |
-| `run-02` | `3002` | `3002` | Prototype run 2 (`3000 + 2`) |
-| `run-NN` | `30NN` | `30NN` | Prototype run N (`3000 + N`, up to `3014`) |
+| `run-100` | `3100` | `3100` | Prototype run 100 (`3000 + 100`) |
+| `run-101` | `3101` | `3101` | Prototype run 101 (`3000 + 101`) |
+| `run-NNN` | `3NNN` | `3NNN` | Prototype run NNN (`3000 + NNN`, up to `3999`) |
 
 ### Why PostgreSQL Host Port is 5433
 Port `5432` is the global default for PostgreSQL. Developers frequently run a local PostgreSQL service on their workstation, or have another Docker container bound to `5432`. If `docker-compose.yml` blindly attempted to bind host port `5432`, startup would fail with `bind: address already in use`.
@@ -66,15 +66,15 @@ In `tc-proto-docker`:
 
 Early prototype configurations attempted a split-port design:
 - Nuxt inside the container listened on static port `3000`.
-- Docker mapped host port `3001` to container port `3000` (`3001:3000`).
+- Docker mapped host port `3100` to container port `3000` (`3100:3000`).
 
 While simple HTTP GET requests functioned, **this broke Hot Module Replacement (HMR)**.
 
 ### The Vite Hot Module Replacement (HMR) Problem
 During development, Nuxt uses Vite. Vite injects a client-side script into the HTML loaded by the browser. This client script opens a persistent **WebSocket connection (`ws://`)** back to the Vite dev server so that code edits in Vue components can be pushed to the browser in real time without refreshing the page.
 
-When internal port `3000` was mapped to external port `3001`:
-1. The browser successfully loaded the initial HTML from `http://localhost:3001`.
+When internal port `3000` was mapped to external port `3100`:
+1. The browser successfully loaded the initial HTML from `http://localhost:3100`.
 2. The Vite client script examined the server's listening configuration and attempted to open a WebSocket connection to `ws://localhost:3000`.
 3. Port `3000` was either closed or occupied by the `template` container, causing the WebSocket handshake to fail.
 4. The browser repeatedly reconnected, printed console errors, and fell back to full-page reloads.
@@ -108,7 +108,7 @@ In `tc-proto-docker`, we collapsed internal and external ports into a unified 1:
    ```
 
 Because Nuxt binds to `0.0.0.0:$PORT` inside the container, and Docker forwards `$PORT:$PORT`:
-- The browser fetches HTML from `http://localhost:3001`.
-- The Vite client script opens its WebSocket to `ws://localhost:3001/_nuxt/`.
+- The browser fetches HTML from `http://localhost:3100`.
+- The Vite client script opens its WebSocket to `ws://localhost:3100/_nuxt/`.
 - Both HTTP requests and WebSocket packets hit the exact same container socket without port translation or proxy divergence.
 

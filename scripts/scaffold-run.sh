@@ -17,17 +17,23 @@ if [[ "$DB" != "hybrid" && "$DB" != "postgres" && "$DB" != "mongo" && "$DB" != "
   exit 1
 fi
 
-# Normalize RUN: accepts 1, 01, 42, run-1, run-01, etc.
+# Normalize RUN: accepts 100, run-100, 142, run-142, etc. (range 100-999)
 if [[ "$RAW_RUN" =~ ^[0-9]+$ ]]; then
-  RUN=$(printf "run-%02d" "$RAW_RUN")
+  NUM="$RAW_RUN"
 elif [[ "$RAW_RUN" =~ ^run-([0-9]+)$ ]]; then
   NUM="${BASH_REMATCH[1]}"
-  RUN=$(printf "run-%02d" "$NUM")
 else
   echo "Error: Invalid or missing RUN argument '$RAW_RUN'." >&2
-  echo "Usage: make new RUN=1 (or RUN=42, or RUN=run-01) [DB=hybrid|postgres|mongo|none]" >&2
+  echo "Usage: make new RUN=100 (or RUN=run-100) [DB=hybrid|postgres|mongo|none]" >&2
   exit 1
 fi
+
+if (( 10#$NUM < 100 || 10#$NUM > 999 )); then
+  echo "Error: RUN number must be between 100 and 999 (received '$RAW_RUN')." >&2
+  exit 1
+fi
+
+RUN=$(printf "run-%03d" "$((10#$NUM))")
 
 TARGET_DIR="prototypes/$RUN"
 DOCS_TARGET_DIR="docs/$RUN"
@@ -47,7 +53,7 @@ if grep -E "^  ${RUN}:" docker-compose.yml >/dev/null 2>&1; then
   exit 1
 fi
 
-# 1. Compute external port: 3000 + N (e.g. run-01 -> 3001)
+# 1. Compute external port: 3000 + N (e.g. run-100 -> 3100)
 NUM="${RUN#run-}"
 PORT=$((3000 + 10#$NUM))
 
