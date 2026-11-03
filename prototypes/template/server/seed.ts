@@ -2,32 +2,39 @@
 // Programmatic contract: executed via `pnpm db:seed`
 import pg from 'pg'
 
-async function runSeed() {
-  const dbUrl = process.env.DATABASE_URL
-  console.log(`[seed] Starting seed health-check for: ${dbUrl ? dbUrl.replace(/:[^:@]+@/, ':****@') : 'undefined'}`)
+async function checkPostgres(url: string) {
+  const pool = new pg.Pool({ connectionString: url })
+  try {
+    const client = await pool.connect()
+    const res = await client.query('SELECT NOW() as current_time, current_database() as db_name')
+    console.log(`[seed] PostgreSQL connection OK: DB='${res.rows[0].db_name}', Time=${res.rows[0].current_time}`)
+    client.release()
+  } finally {
+    await pool.end()
+  }
+}
 
-  if (!dbUrl) {
-    console.warn('[seed] No DATABASE_URL provided. Skipping DB connectivity check.')
+async function runSeed() {
+  const user = process.env.DB_USER
+  const pass = process.env.DB_PASSWORD
+  const host = process.env.POSTGRES_HOST || 'postgres'
+  const port = process.env.POSTGRES_PORT || '5432'
+  const db = process.env.DB_NAME || 'proto_template'
+
+  const pgUrl = process.env.POSTGRES_URL || (user && pass ? `postgresql://${user}:${pass}@${host}:${port}/${db}` : undefined)
+
+  console.log('[seed] Starting database connectivity health-check...')
+
+  if (!pgUrl) {
+    console.warn('[seed] No PostgreSQL configuration found in environment.')
     return
   }
 
-  if (dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://')) {
-    const pool = new pg.Pool({ connectionString: dbUrl })
-    try {
-      const client = await pool.connect()
-      const res = await client.query('SELECT NOW() as current_time, current_database() as db_name')
-      console.log(`[seed] PostgreSQL connection successful! DB: ${res.rows[0].db_name}, Time: ${res.rows[0].current_time}`)
-      client.release()
-    } catch (err) {
-      console.error('[seed] PostgreSQL connection failed:', err)
-      process.exit(1)
-    } finally {
-      await pool.end()
-    }
-  } else if (dbUrl.startsWith('mongodb://')) {
-    console.log('[seed] MongoDB connection ready for prototype implementation.')
-  } else {
-    console.log(`[seed] Generic or unhandled connection scheme: ${dbUrl}`)
+  try {
+    await checkPostgres(pgUrl)
+  } catch (err) {
+    console.error('[seed] PostgreSQL connection failed:', err)
+    process.exit(1)
   }
 
   console.log('[seed] Health-check completed successfully.')
@@ -37,4 +44,3 @@ runSeed().catch((err) => {
   console.error('[seed] Fatal error during seed execution:', err)
   process.exit(1)
 })
-

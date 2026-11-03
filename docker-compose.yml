@@ -7,10 +7,10 @@ services:
     restart: unless-stopped
     ports:
       # Host port maps to 5433 by default to avoid conflicts with existing host Postgres
-      - "${POSTGRES_PORT:-5433}:5432"
+      - "${HOST_POSTGRES_PORT:-5433}:5432"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-lerch}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secretpassword}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: default_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -22,8 +22,8 @@ services:
     ports:
       - "27017:27017"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-lerch}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-secretpassword}
+      MONGO_INITDB_ROOT_USERNAME: ${DB_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD}
     volumes:
       - mongo_data:/data/db
 
@@ -40,6 +40,8 @@ services:
     image: node:22-slim
     working_dir: /app
     command: sh -c "corepack enable && pnpm install && pnpm dev --host 0.0.0.0"
+    env_file:
+      - .env
     volumes:
       - /app/node_modules
       - /app/.nuxt
@@ -56,10 +58,11 @@ services:
     profiles: ["template"]
     ports:
       - "3000:3000"
+    environment:
+      - PORT=3000
+      - DB_NAME=proto_template
     volumes:
       - ./prototypes/template:/app
-    env_file:
-      - ./prototypes/template/.env
 
 volumes:
   postgres_data:

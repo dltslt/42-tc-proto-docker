@@ -14,7 +14,7 @@ elif [[ "$RAW_RUN" =~ ^run-([0-9]+)$ ]]; then
   RUN=$(printf "run-%02d" "$NUM")
 else
   echo "Error: Invalid or missing RUN argument '$RAW_RUN'." >&2
-  echo "Usage: make new RUN=1 (or RUN=42, or RUN=run-01) [DB=postgres|mongo|both|none]" >&2
+  echo "Usage: make new RUN=1 (or RUN=42, or RUN=run-01) [DB=postgres|mongo|none]" >&2
   exit 1
 fi
 
@@ -52,29 +52,18 @@ rsync -rlptD \
   --exclude '.env' \
   prototypes/template/ "$TARGET_DIR/"
 
-# 3. Create run-specific .env file
+# 3. Create run-specific .env file (optional local overrides)
 DB_NAME="proto_${RUN//-/_}"
 ENV_FILE="$TARGET_DIR/.env"
 
 cat <<EOF > "$ENV_FILE"
 # Environment configuration for $RUN
-PORT=3000
-CLIENT_PORT=$PORT
+# (Inside Docker containers, DB credentials and hostnames are inherited from the root .env)
+PORT=$PORT
+DB_NAME=$DB_NAME
 EOF
 
-if [[ "$DB" == "postgres" || "$DB" == "both" ]]; then
-  echo "DATABASE_URL=postgresql://\${POSTGRES_USER:-lerch}:\${POSTGRES_PASSWORD:-secretpassword}@postgres:5432/$DB_NAME" >> "$ENV_FILE"
-fi
-
-if [[ "$DB" == "mongo" ]]; then
-  echo "DATABASE_URL=mongodb://\${MONGO_USER:-lerch}:\${MONGO_PASSWORD:-secretpassword}@mongo:27017/$DB_NAME?authSource=admin" >> "$ENV_FILE"
-fi
-
-if [[ "$DB" == "both" ]]; then
-  echo "MONGO_URL=mongodb://\${MONGO_USER:-lerch}:\${MONGO_PASSWORD:-secretpassword}@mongo:27017/$DB_NAME?authSource=admin" >> "$ENV_FILE"
-fi
-
-echo "Created '$ENV_FILE' with CLIENT_PORT=$PORT."
+echo "Created '$ENV_FILE' with PORT=$PORT and DB_NAME=$DB_NAME."
 
 # 4. Inject service block into docker-compose.yml before the top-level 'volumes:' section
 python3 - <<EOF
@@ -87,11 +76,12 @@ service_block = '''  $RUN:
       service: base-proto
     profiles: ["$RUN", "all"]
     ports:
-      - "$PORT:3000"
+      - "$PORT:$PORT"
+    environment:
+      - PORT=$PORT
+      - DB_NAME=$DB_NAME
     volumes:
       - ./prototypes/$RUN:/app
-    env_file:
-      - ./prototypes/$RUN/.env
 
 '''
 
@@ -103,10 +93,10 @@ with open('docker-compose.yml', 'w') as f:
     f.write(new_content)
 EOF
 
-echo "Added service '$RUN' (port $PORT:3000) to docker-compose.yml."
+echo "Added service '$RUN' (port $PORT:$PORT) to docker-compose.yml."
 
 # 5. Database provisioning (cold-start SQL + live container provisioning)
-if [[ "$DB" == "postgres" || "$DB" == "both" ]]; then
+if [[ "$DB" == "postgres" ]]; then
   SQL_FILE="docker/postgres/init/01-create-databases.sql"
   if [[ -f "$SQL_FILE" ]] && ! grep -q "CREATE DATABASE $DB_NAME;" "$SQL_FILE"; then
     echo "CREATE DATABASE $DB_NAME;" >> "$SQL_FILE"
@@ -115,11 +105,18 @@ if [[ "$DB" == "postgres" || "$DB" == "both" ]]; then
 
   # Dynamic provisioning on running container (avoids Postgres initdb trap)
   if docker compose ps postgres --status running -q 2>/dev/null | grep -q .; then
+    # Read root DB credentials
+    USER="lerch"
+    if [[ -f .env ]]; then
+      # shellcheck disable=SC1091
+      source .env
+      USER="${DB_USER:-lerch}"
+    fi
     echo "Checking live PostgreSQL container for '$DB_NAME'..."
-    EXISTS=$(docker compose exec -T postgres psql -U "${POSTGRES_USER:-lerch}" -d default_db -tc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" 2>/dev/null | tr -d '[:space:]' || true)
+    EXISTS=$(docker compose exec -T postgres psql -U "$USER" -d default_db -tc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" 2>/dev/null | tr -d '[:space:]' || true)
     if [[ "$EXISTS" != "1" ]]; then
       echo "Creating database '$DB_NAME' on running PostgreSQL container..."
-      docker compose exec -T postgres psql -U "${POSTGRES_USER:-lerch}" -d default_db -c "CREATE DATABASE $DB_NAME;"
+      docker compose exec -T postgres psql -U "$USER" -d default_db -c "CREATE DATABASE $DB_NAME;"
       echo "Database '$DB_NAME' created successfully on running PostgreSQL."
     else
       echo "Database '$DB_NAME' already exists on running PostgreSQL."

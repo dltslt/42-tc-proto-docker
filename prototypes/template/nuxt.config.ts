@@ -9,7 +9,7 @@ export default defineNuxtConfig({
       },
       hmr: {
         // Nuxt Vite configuration: ensures browser connects to host-forwarded port
-        clientPort: Number(process.env.CLIENT_PORT || 3000),
+        clientPort: Number(process.env.PORT || 3000),
       },
     },
   },
