@@ -1,84 +1,110 @@
-# `ft_transcendence` Prototypes (Docker)
+# Containerized Nuxt 4 Prototyping Platform
 
-This repository is `tc-proto-docker`. It provides an orchestrated, containerized prototyping environment for building and evaluating prototypes of **Lerch**, a team-first task and project management tool moving toward product stage.
+> [!NOTE]
+> **Authorship & Provenance**
+> This repository, including its architecture, orchestration, automation scripts, and technical documentation, was written by **Antigravity (Gemini 3.8 Flash)** in collaboration with the team.
+
+This repository provides an orchestrated, containerized prototyping platform built around our team's specific project for **`ft_transcendence`**. It enables rapid full-stack exploration, benchmarking, and architectural evaluation through concurrent execution of multiple isolated [Nuxt 4](https://nuxt.com/) prototype instances backed by shared [PostgreSQL 16](https://www.postgresql.org/) and [MongoDB 7](https://www.mongodb.com/) container engines on a private Docker bridge network.
+
+It is not intended as a generic tool to directly assist every 42 student, but rather as an **idea and architectural blueprint** of how a containerized prototyping environment can be structured. Our team uses this environment as a shared lab for iterating on ideas and evaluating patterns. While the overall design and core files (such as domain models, briefs, and agent guidelines) are directly tied to our team's project design, the platform serves as an active engineering testbed and an educational reference for developers with a systems programming background (C/C++ in the 42 curriculum) transitioning into modern full-stack web, reactivity, containerization, and multi-model database architectures.
 
 ```text
 .
-├── AGENTS.md       the rule every prototype agent follows, including how to commit
-├── README.md       this file
-├── PROMPT.md       the harness prompt that starts a run; names a run and a brief
-├── briefs/         one brief per prototype; a run does not receive a copy
-├── template/       the Nuxt app every run copies; do not build a prototype here
-├── .agents/        agent skills for git commits and modern web guidance
-└── <run-dir>/      one prototype run (e.g. run-01/, proto-01/)
+├── AGENTS.md            the rule every prototype agent follows, including how to commit
+├── README.md            this file: repository overview, quick start, and curriculum roadmap
+├── PROMPT.md            the harness prompt that starts a run; names a run and a brief
+├── briefs/              one brief per prototype defining the scenario to evaluate
+├── docs/                technical documentation and prototype run documentation
+│   ├── README.md        master documentation index and curriculum guide
+│   ├── docker/          platform and container architecture deep-dives
+│   ├── template/        starter documentation templates for prototype runs
+│   └── run-XX/          documentation for prototype run-XX (design.md, NOTES.md, etc.)
+├── prototypes/
+│   ├── template/        baseline Nuxt 4 prototype blueprint; do not build here
+│   └── run-XX/          isolated prototype runs (run-01/, run-02/, etc.)
+├── docker/              database initialization scripts and container configs
+├── scripts/             scaffolding and control plane automation scripts
+└── .agents/             agent skills for git commits and modern web guidance
 ```
 
 ---
 
-## Requirements
+## Technical Architecture & Curriculum Deep Dives
 
-- Docker & Docker Compose
-- Node.js `^22.22.3`, `^24.15.0`, or `26` or newer (for local tooling)
-- pnpm `12.16.1` or newer
+This platform serves both as an engineering testbed and as a **systems programming lesson** for developers with C/C++ backgrounds transitioning into modern web and cloud architecture.
 
-> [!NOTE]
-> *[Stub / Incomplete: Engine versions, base container images, and Compose prerequisites will be pinned as the Docker stack is finalized.]*
+Deep-dive documentation is organized in [`docs/`](docs/README.md):
 
----
-
-## After the Clone
-
-### Create a new run
-*[Follows as soon as the Docker scaffolding script / make command is finalized]*
-
-### Initialize an existing run
-*[Follows as soon as Docker Compose service configuration and port mappings are finalized]*
+- **[1. Container Architecture & Service Topology](docs/docker/architecture.md)**: Linux namespaces (`pid`, `net`, `mnt`), cgroups, Docker Compose service inheritance (`base-proto`), and profile-based container activation.
+- **[2. Node.js Virtualization, Volume Masking & pnpm CAS](docs/docker/pnpm-and-volumes.md)**: Why host and container cannot share `node_modules` (Mach-O vs. ELF binary ABIs, `glibc` forward-incompatibility, root UID permissions), Docker anonymous volume masking, and hard-linked Content-Addressable Storage (CAS) via shared named volume `pnpm_store`.
+- **[3. Networking, Ports & Vite HMR](docs/docker/networking-and-ports.md)**: NAT port forwarding, host PostgreSQL port `5433` conflict resolution, and the single 1:1 port architecture (`$PORT:$PORT`) for flawless Vite WebSocket Hot Module Replacement.
+- **[4. Hybrid Database Architecture](docs/docker/databases.md)**: Dual persistence model (PostgreSQL for admin/spaces/members, MongoDB for items/trees/events), zero hardcoded credentials, dynamic URL assembly in Node, and overcoming the PostgreSQL `initdb` one-time initialization trap.
+- **[5. Control Plane Operations Manual](docs/docker/control-plane.md)**: Complete guide to `make` CLI workflows, container lifecycles, and the programmatic seeding contract (`pnpm db:seed`).
 
 ---
 
-## Database
+## Requirements & Prerequisites
 
-Prototypes evaluate both relational and document-oriented models using centralized containerized database engines (e.g., PostgreSQL, MongoDB) with dedicated logical databases per prototype.
-
-The core domain consists of 11 entities: `actors`, `spaces`, `members`, `columns`, `tasks`, `relations`, `tags`, `item_tags`, `blockers`, `artifacts`, `item_artifacts`, and `events`.
-
-> [!NOTE]
-> *[Stub / Incomplete: Container connection URLs, database initialization scripts, and programmatic seeding contracts (e.g. `pnpm db:seed`) will be documented here once the Docker database services are active.]*
-
----
-
-## Runs
-
-| Run | Brief | Seed | Question |
-|---|---|---|---|
-| run-01 | fast-01-create-and-close | 100 | how few steps from a title to done |
-| run-02 | fast-02-storage-sql | 10,000 | the data model as tables, ten queries timed |
-| run-03 | fast-03-storage-document | 10,000 | the same model and queries as documents |
-| run-04 | fast-04-one-item-many-views | 100 | list, board, calendar on one shared store |
-| run-05 | fast-05-gantt-variants | 100 | gantt by hierarchy, by contributor, by blocker chain, and filtering |
-| run-06 | fast-06-zoom-interface | 100 | zoom into items, notebook tabs, Ctrl+P (the interface idea from the 29 Oct notes) |
-| run-07 | fast-07-nesting-displays | 100 | outline, drill-down, nested boxes, columns for one deep tree |
-| run-08 | fast-08-relationship-graph | 100 | one item's neighbourhood as a graph and a mind map |
-| run-09 | fast-09-widget-dashboard | 100 | widgets on a grid, a morning screen, per space and per person |
-| run-10 | fast-10-space-and-members | 100 | sign-up, a space, members, two policies, a shared task |
-| run-11 | proper-01-data-model-and-storage | 10,000 | the model and storage to build on |
-| run-12 | proper-02-space-boundary | 100 | the space with policies as the security boundary |
-| run-13 | proper-03-content-relations | 100 | related items by text and by embeddings, kept in scope |
-| run-14 | proper-04-lerch-shell | 100 | the application frame that views and widgets live in |
+- **Docker Engine**: Version `24.0.0` or newer with **Docker Compose v2** (`docker compose`).
+- **Node.js**: (Optional, for local host typechecking) `^22.22.3`, `^24.15.0`, or `26`.
+- **pnpm**: (Optional, for host tooling) `12.16.1` or newer. We recommend installing directly via npm:
+  ```bash
+  npm install -g pnpm@12.16.1
+  ```
 
 ---
 
-## Concept Index
+## Quick Start (Control Plane Cheatsheet)
 
-| Exploration Area | Primary Briefs |
-|---|---|
-| **Data Modelling & Queries** | `fast-02-storage-sql`, `fast-03-storage-document`, `proper-01-data-model-and-storage` |
-| **SQL vs. NoSQL Tradeoffs** | `fast-02-storage-sql` vs. `fast-03-storage-document` |
-| **Scalable Retrieval (10k items)** | `fast-02-storage-sql`, `fast-03-storage-document`, `proper-01-data-model-and-storage` |
-| **Workspaces & Access Control** | `fast-10-space-and-members`, `proper-02-space-boundary` |
-| **User Workflows (Fast entry)** | `fast-01-create-and-close` |
-| **Multi-View Synchronization** | `fast-04-one-item-many-views` |
-| **Hierarchies & Nesting** | `fast-07-nesting-displays`, `fast-06-zoom-interface` |
-| **Dependency & Blocker Graphs** | `fast-08-relationship-graph`, `fast-05-gantt-variants` |
-| **Dashboards & Metric Widgets** | `fast-09-widget-dashboard`, `proper-04-lerch-shell` |
-| **Semantic Similarity & Embeddings** | `proper-03-content-relations` |
+All platform operations are orchestrated through standard `make` targets:
+
+```bash
+# 1. Bootstrap stack after a fresh clone (pulls images, boots DBs, seeds, shuts down)
+make init
+
+# 2. Scaffold a new isolated prototype run (e.g. run-01 on port 3001)
+make new RUN=1 DB=hybrid
+
+# 3. Start the prototype container in detached mode
+make up RUN=1
+
+# 4. Seed the prototype's logical database (executes pnpm run db:seed)
+make seed RUN=1
+
+# 5. Open in your browser:
+#    http://localhost:3001
+
+# 6. Tail container logs or open an interactive shell
+make logs RUN=1
+make sh RUN=1
+
+# 7. Stop running containers cleanly
+make down
+```
+
+### Full Target Reference
+
+| Target | Description | Example |
+|---|---|---|
+| `make init` | Bootstraps stack from fresh clone | `make init` |
+| `make new` | Scaffolds prototype code (`prototypes/`) & docs (`docs/`) | `make new RUN=1 [DB=hybrid\|postgres\|mongo\|none]` |
+| `make up` | Starts a specific prototype container and DB engines | `make up RUN=1` (or `make up RUN=template`) |
+| `make up-all` | Starts all scaffolded prototypes simultaneously | `make up-all` |
+| `make seed` | Executes programmatic seeding contract (`server/seed.ts`) | `make seed RUN=1` |
+| `make logs` | Tails stdout/stderr logs for a prototype | `make logs RUN=1` |
+| `make logs-all` | Tails logs across all running prototype containers | `make logs-all` |
+| `make sh` | Opens `/bin/sh` shell inside prototype container | `make sh RUN=1` |
+| `make down` | Stops all running containers cleanly | `make down` |
+| `make db-reset` | Wipes database volumes and reinitializes fresh engines | `make db-reset` |
+
+---
+
+## Prototype Documentation Convention
+
+Every prototype run maintains its technical documentation inside `docs/run-XX/`:
+- `docs/run-XX/design.md`: Architecture overview and Mermaid data flow.
+- `docs/run-XX/frontend.md`: UI state management, components, and re-render triggers.
+- `docs/run-XX/backend.md`: Nitro server routes, database schemas, and queries.
+- `docs/run-XX/NOTES.md`: Standard post-mortem summary, findings, cuts, and benchmark timings.
+
+See [`docs/README.md`](docs/README.md) and [`AGENTS.md`](AGENTS.md) for complete guidelines.
