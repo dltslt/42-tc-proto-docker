@@ -90,6 +90,7 @@ make down
 | `make new` | Scaffolds prototype code (`prototypes/`) & docs (`docs/`) | `make new RUN=1 [DB=hybrid\|postgres\|mongo\|none]` |
 | `make up` | Starts a specific prototype container and DB engines | `make up RUN=1` (or `make up RUN=template`) |
 | `make up-all` | Starts all scaffolded prototypes simultaneously | `make up-all` |
+| `make ps` | Lists running containers in the compose stack | `make ps` (or `make ps RUN=1`) |
 | `make seed` | Executes programmatic seeding contract (`server/seed.ts`) | `make seed RUN=1` |
 | `make logs` | Tails stdout/stderr logs for a prototype | `make logs RUN=1` |
 | `make logs-all` | Tails logs across all running prototype containers | `make logs-all` |

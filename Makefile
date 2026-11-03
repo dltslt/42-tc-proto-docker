@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help init new up up-all down seed logs logs-all sh db-reset
+.PHONY: help init new up up-all down ps seed logs logs-all sh db-reset
 
 # Normalize RUN: 1 -> run-01, 42 -> run-42, run-1 -> run-01, run-01 -> run-01, template -> template
 NORM_RUN = $(shell bash -c 'r="$(RUN)"; if [[ "$$r" =~ ^[0-9]+$$ ]]; then printf "run-%02d" "$$r"; elif [[ "$$r" =~ ^run-([0-9]+)$$ ]]; then printf "run-%02d" "$${BASH_REMATCH[1]}"; else echo "$$r"; fi')
@@ -38,6 +38,14 @@ up-all: ## Start all prototypes simultaneously
 
 down: ## Stop all running prototype containers
 	docker compose --profile all down
+
+ps: ## List running containers in the compose stack (Usage: make ps or make ps RUN=1)
+	@run="$(NORM_RUN)"; \
+	if [ -n "$$run" ]; then \
+		docker compose --profile "$$run" ps "$$run"; \
+	else \
+		docker compose --profile "*" ps; \
+	fi
 
 seed: ## Run the seed script for a prototype (Usage: make seed RUN=1 or make seed RUN=template)
 	@run="$(NORM_RUN)"; \

@@ -76,6 +76,16 @@ make up-all
 
 ---
 
+### `make ps`
+Lists running containers across the entire Docker Compose stack or targets a specific prototype.
+```bash
+make ps             # Lists all active containers (PostgreSQL, MongoDB, active prototypes)
+make ps RUN=1       # Checks container status for run-01
+```
+- Uses `docker compose --profile "*"` to inspect all profiled services and shared engines.
+
+---
+
 ### `make seed`
 Executes the programmatic database seeding contract inside the prototype container.
 ```bash
