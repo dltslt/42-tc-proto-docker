@@ -30,9 +30,15 @@ else
 fi
 
 TARGET_DIR="prototypes/$RUN"
+DOCS_TARGET_DIR="docs/$RUN"
 
 if [[ -d "$TARGET_DIR" ]]; then
   echo "Error: Directory '$TARGET_DIR' already exists." >&2
+  exit 1
+fi
+
+if [[ -d "$DOCS_TARGET_DIR" ]]; then
+  echo "Error: Documentation directory '$DOCS_TARGET_DIR' already exists." >&2
   exit 1
 fi
 
@@ -76,7 +82,21 @@ EOF
 
 echo "Created '$ENV_FILE' with PORT=$PORT and DB_NAME=$DB_NAME."
 
-# 4. Inject service block into docker-compose.yml before the top-level 'volumes:' section
+# 4. Initialize prototype documentation in docs/$RUN
+if [[ -d "docs/template" ]]; then
+  mkdir -p "$DOCS_TARGET_DIR"
+  cp -r docs/template/* "$DOCS_TARGET_DIR/"
+  for f in "$DOCS_TARGET_DIR"/*.md; do
+    if [[ -f "$f" ]]; then
+      sed -i "s/{{RUN}}/$RUN/g" "$f"
+      sed -i "s/{{PORT}}/$PORT/g" "$f"
+      sed -i "s/{{DB_NAME}}/$DB_NAME/g" "$f"
+    fi
+  done
+  echo "Initialized run documentation in '$DOCS_TARGET_DIR'."
+fi
+
+# 5. Inject service block into docker-compose.yml before the top-level 'volumes:' section
 python3 - <<EOF
 with open('docker-compose.yml', 'r') as f:
     content = f.read()
@@ -106,7 +126,7 @@ EOF
 
 echo "Added service '$RUN' (port $PORT:$PORT) to docker-compose.yml."
 
-# 5. Database provisioning (cold-start SQL + live container provisioning)
+# 6. Database provisioning (cold-start SQL + live container provisioning)
 if [[ "$DB" == "postgres" || "$DB" == "hybrid" ]]; then
   SQL_FILE="docker/postgres/init/01-create-databases.sql"
   if [[ -f "$SQL_FILE" ]] && ! grep -q "CREATE DATABASE $DB_NAME;" "$SQL_FILE"; then
@@ -145,3 +165,4 @@ echo "==> Prototype '$RUN' successfully scaffolded!"
 echo "    Start container:  make up RUN=$RUN"
 echo "    Seed database:    make seed RUN=$RUN"
 echo "    Browse UI:        http://localhost:$PORT"
+echo "    Documentation:    docs/$RUN/"
