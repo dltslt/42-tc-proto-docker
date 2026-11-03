@@ -18,7 +18,7 @@ init: ## Bootstrap stack after fresh clone (pulls images, seeds DBs, shuts down 
 		if [ -d "$$dir" ]; then \
 			run=$$(basename "$$dir"); \
 			echo "==> Seeding $$run..."; \
-			@docker compose run --rm -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 "$$run" sh -c "corepack enable && pnpm run db:seed"; \
+			docker compose run --rm -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 "$$run" sh -c "corepack enable && pnpm run db:seed"; \
 		fi \
 	done
 	@echo "==> Shutting down cleanly..."
