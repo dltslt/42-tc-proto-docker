@@ -56,37 +56,54 @@ Deep-dive documentation is organized in [`docs/`](docs/README.md):
 
 ## Quick Start (Control Plane Cheatsheet)
 
-All platform operations are orchestrated through standard `make` targets:
+All platform operations are orchestrated through standard `make` targets.
+
+> [!IMPORTANT]
+> **When to use `make init` vs. `make new`:**
+> `make init` is only needed and only takes effect when **existing prototype runs are present** in the repository (e.g. after cloning a repository or branch that already contains `prototypes/run-01/`). It pulls base images, boots the database engines, and batch-seeds every existing prototype before shutting down.
+>
+> If you are starting fresh with no runs present, there is nothing for `make init` to seed — skip `make init` and jump straight to `make new` below to scaffold your first run.
+
+### Scaffolding a New Prototype Run (Fresh Clone / New Work)
 
 ```bash
-# 1. Bootstrap stack after a fresh clone (pulls images, boots DBs, seeds, shuts down)
-make init
-
-# 2. Scaffold a new isolated prototype run (e.g. run-01 on port 3001)
+# 1. Scaffold a new isolated prototype run (e.g. run-01 on port 3001)
 make new RUN=1 DB=hybrid
 
-# 3. Start the prototype container in detached mode
+# 2. Start the prototype container in detached mode
 make up RUN=1
 
-# 4. Seed the prototype's logical database (executes pnpm run db:seed)
+# 3. Seed the prototype's logical database (executes pnpm run db:seed)
 make seed RUN=1
 
-# 5. Open in your browser:
+# 4. Open in your browser:
 #    http://localhost:3001
 
-# 6. Tail container logs or open an interactive shell
+# 5. Tail container logs or open an interactive shell
 make logs RUN=1
 make sh RUN=1
 
-# 7. Stop running containers cleanly
+# 6. Stop running containers cleanly
 make down
+```
+
+### Initializing Existing Prototype Runs (`make init`)
+
+If you just cloned a branch or repository that already contains prototype runs:
+
+```bash
+# Pulls base images, boots shared DB engines, seeds all existing runs, and shuts down cleanly
+make init
+
+# Then start whichever prototype you want to inspect:
+make up RUN=1
 ```
 
 ### Full Target Reference
 
 | Target | Description | Example |
 |---|---|---|
-| `make init` | Bootstraps stack from fresh clone | `make init` |
+| `make init` | Bootstraps & seeds all existing runs (only needed when runs exist) | `make init` |
 | `make new` | Scaffolds prototype code (`prototypes/`) & docs (`docs/`) | `make new RUN=1 [DB=hybrid\|postgres\|mongo\|none]` |
 | `make up` | Starts a specific prototype container and DB engines | `make up RUN=1` (or `make up RUN=template`) |
 | `make up-all` | Starts all scaffolded prototypes simultaneously | `make up-all` |

@@ -8,22 +8,31 @@ NORM_RUN = $(shell bash -c 'r="$(RUN)"; if [[ "$$r" =~ ^[0-9]+$$ ]]; then printf
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
-init: ## Bootstrap stack after fresh clone (pulls images, seeds DBs, shuts down clean)
+init: ## Bootstrap stack when runs exist (pulls images, seeds existing runs, shuts down clean)
 	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from .env.example"; fi
 	@echo "==> Pulling base container images..."
 	@docker compose pull postgres mongo base-proto
 	@echo "==> Starting database engines..."
 	@docker compose up -d postgres mongo
-	@for dir in prototypes/run-*/; do \
+	@has_runs=0; \
+	for dir in prototypes/run-*/; do \
 		if [ -d "$$dir" ]; then \
+			has_runs=1; \
 			run=$$(basename "$$dir"); \
 			echo "==> Seeding $$run..."; \
 			docker compose run --rm -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 "$$run" sh -c "corepack enable && pnpm run db:seed"; \
 		fi \
-	done
+	done; \
+	if [ "$$has_runs" -eq 0 ]; then \
+		echo "==> Notice: No existing prototype runs found in prototypes/run-*/. Nothing to seed."; \
+	fi
 	@echo "==> Shutting down cleanly..."
 	@docker compose --profile all down
-	@echo "==> Initialization complete. Run 'make up RUN=<n>' to start a prototype."
+	@if [ "$$has_runs" -eq 1 ]; then \
+		echo "==> Initialization complete. Run 'make up RUN=<n>' to start a prototype."; \
+	else \
+		echo "==> Stack ready. Run 'make new RUN=<n>' to scaffold your first prototype run."; \
+	fi
 
 new: ## Scaffold a new prototype run (Usage: make new RUN=1 or make new RUN=42 [DB=hybrid|postgres|mongo])
 	@bash ./scripts/scaffold-run.sh "$(RUN)" "$(DB)"

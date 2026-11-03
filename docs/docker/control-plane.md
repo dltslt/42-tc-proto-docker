@@ -24,15 +24,18 @@ Developer Shell
 ## 2. Command Reference
 
 ### `make init`
-Initializes the entire development environment after a fresh clone.
+Initializes the entire development environment after a fresh clone when existing prototype runs are present.
 ```bash
 make init
 ```
 1. Creates `.env` from `.env.example` if it does not exist.
 2. Pulls base images (`postgres:16-alpine`, `mongo:7`, and Node builder).
 3. Boots PostgreSQL and MongoDB database engines.
-4. Iterates over any existing prototype directories in `prototypes/` and seeds their logical databases.
+4. Iterates over any existing prototype directories in `prototypes/` (`run-*`) and seeds their logical databases.
 5. Shuts down containers cleanly.
+
+> [!NOTE]
+> `make init` is only needed when the repository already contains scaffolded prototype runs (e.g. after cloning a repository or branch that contains `run-01/`). If starting fresh with no runs present, there are no databases to seed — skip `make init` and proceed directly to `make new RUN=1`.
 
 ---
 
