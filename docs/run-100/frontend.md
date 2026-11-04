@@ -7,6 +7,10 @@
   changes. Every action (create, update, move) calls the API, then re-fetches. The server is the single
   source of truth; there is no client-side copy to drift.
 - Derived data is `computed()`: `childMap` (tree), `byColumn` (board).
+- **Project scope**: a selector next to the view tabs focuses the board and tree on one project. The choice is
+  the URL query `?project=<id>` (reload-safe, shareable); unknown ids are ignored. While scoped, the board
+  shows the project's descendants and new items become its children. Tree walking lives in the pure
+  `shared/utils/tree.ts` (`buildChildMap`, `descendantsOf`), covered by `tests/tree.test.ts`.
 - Composables are called synchronously at the top of `setup()`; Nuxt composables lose their context after an `await`.
 
 ## Component Breakdown

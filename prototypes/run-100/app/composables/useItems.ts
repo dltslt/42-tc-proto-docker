@@ -20,18 +20,35 @@ export function useItems() {
   )
   const items = computed(() => data.value ?? [])
 
-  // Flat list -> tree: the DB stores only parent_id, the UI groups children under their parent ('' = roots).
-  const childMap = computed(() => {
-    const map: Record<string, Item[]> = {}
-    for (const item of items.value) (map[item.parent_id ?? ''] ??= []).push(item)
-    for (const list of Object.values(map)) list.sort((a, b) => a.created_at.localeCompare(b.created_at))
-    return map
+  const childMap = computed(() => buildChildMap(items.value))
+
+  // Scope filter: focus the board/tree on one project. The choice lives in the URL (?project=<id>),
+  // so it survives reloads and can be shared. useRoute() is reactive: it updates on navigation.
+  const route = useRoute()
+  const router = useRouter()
+  const projects = computed(() => items.value.filter(i => i.type === 'project'))
+  const scopeId = computed<string | null>({
+    get() {
+      const q = route.query.project
+      return typeof q === 'string' && projects.value.some(p => p.id === q) ? q : null // unknown id: ignore
+    },
+    set(id) {
+      router.replace({ query: id ? { project: id } : {} })
+    },
   })
+  const scopeProject = computed(() => projects.value.find(p => p.id === scopeId.value) ?? null)
+
+  // Board shows the scoped project's descendants (or everything when unscoped).
+  const scopedItems = computed(() =>
+    scopeId.value ? descendantsOf(childMap.value, scopeId.value) : items.value,
+  )
 
   // Board columns: discarded items leave the board; the API already sorted by position.
   const byColumn = computed(() => {
     const cols = Object.fromEntries(COLUMNS.map(c => [c.key, [] as Item[]])) as Record<ColumnKey, Item[]>
-    for (const item of items.value) if (item.state !== 'discarded') cols[item.board_column].push(item)
+    for (const item of scopedItems.value) if (item.state !== 'discarded') cols[item.board_column].push(item)
+    // scopedItems keeps list order only for the unscoped case; re-sort so scoped boards stay ordered too.
+    for (const list of Object.values(cols)) list.sort((a, b) => a.position - b.position)
     return cols
   })
 
@@ -60,5 +77,5 @@ export function useItems() {
   const update = (id: string, patch: Record<string, unknown>) =>
     call(() => $fetch(`/api/items/${id}`, { method: 'PATCH', headers: headers(), body: patch }))
 
-  return { items, childMap, byColumn, titleOf, create, update }
+  return { items, childMap, projects, scopeId, scopeProject, byColumn, titleOf, create, update }
 }

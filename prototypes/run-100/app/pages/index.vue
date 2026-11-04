@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // File-based routing: app/pages/index.vue is the route "/".
 const { actor, space, roster } = useIdentity()
-const { items, childMap, byColumn, titleOf, create, update } = useItems()
+const { items, childMap, projects, scopeId, scopeProject, byColumn, titleOf, create, update } = useItems()
 
 const view = ref<'board' | 'tree'>('board')
 const viewTabs = [
@@ -9,7 +9,23 @@ const viewTabs = [
   { label: 'Tree', value: 'tree', icon: 'i-lucide-list-tree' },
 ]
 
-const roots = computed(() => childMap.value[''] ?? [])
+// Tree roots: the scoped project, or every top-level item.
+const roots = computed(() => scopeProject.value ? [scopeProject.value] : childMap.value[''] ?? [])
+
+// Scope selector: USelect cannot hold null, so "all items" gets a sentinel value.
+const ALL = '__all'
+const scopeItems = computed(() => [
+  { label: 'All items', value: ALL, icon: 'i-lucide-layers' },
+  ...projects.value.map(p => ({ label: p.title, value: p.id, icon: 'i-lucide-folder' })),
+])
+const scope = computed({
+  get: () => scopeId.value ?? ALL,
+  set: (v: string) => { scopeId.value = v === ALL ? null : v },
+})
+
+// New items created while a project is in scope become its children (one step, no parent picker).
+const createHere = (title: string, extra: { parent_id?: string, board_column?: ColumnKey } = {}) =>
+  create(title, { parent_id: scopeId.value ?? undefined, ...extra })
 
 // Editor dialog: open when an item id is selected.
 const selectedId = ref<string | null>(null)
@@ -26,8 +42,9 @@ const save = (id: string, patch: Record<string, unknown>) => update(id, patch)
   <main class="mx-auto max-w-7xl space-y-4 px-4 py-6">
     <div class="flex flex-wrap items-center gap-4">
       <div class="min-w-64 flex-1">
-        <QuickAdd size="lg" @add="title => create(title)" />
+        <QuickAdd size="lg" :placeholder="scopeProject ? `Add to ${scopeProject.title} and press Enter` : undefined" @add="title => createHere(title)" />
       </div>
+      <USelect v-model="scope" :items="scopeItems" class="w-56" aria-label="Project scope" />
       <!-- :content="false": tabs act as a plain switch; the content is rendered below. -->
       <UTabs v-model="view" :items="viewTabs" :content="false" class="w-56" />
     </div>
@@ -42,7 +59,7 @@ const save = (id: string, patch: Record<string, unknown>) => update(id, patch)
       :title-of="titleOf"
       @open="selectedId = $event"
       @move="move"
-      @add="(board_column, title) => create(title, { board_column })"
+      @add="(board_column, title) => createHere(title, { board_column })"
     />
 
     <section v-else class="rounded-lg border border-default py-2">
