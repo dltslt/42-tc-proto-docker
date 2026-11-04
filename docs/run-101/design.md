@@ -38,6 +38,7 @@ Nuxt does not enforce this direction: auto-imports let any layer call any other,
 - **Execution boundaries**: `layers/*/app` is universal (server render, then browser). `layers/*/server` will be server-only.
 - **Views as plug-ins**: a view registers itself from its own plugin. The shell builds its navigation and routes from the registry, so removing a view folder removes it everywhere.
 - **Key trade-off**: the registry is fixed at app start. Views chosen per user or space will need a filter on top of it.
+- **`getActor()` lives in `workspace`, not `core` as the brief's layer table says**: it looks the caller up in the `actors` table, which `workspace` owns, and `core` must not import `workspace`. Nothing in `core` needs it: `can()` and the event writer receive the actor as an argument, and every route that calls `getActor()` is in a layer that can use `workspace`.
 - **Rules in the database**: space boundaries and column/state consistency are foreign keys, so no route can break them. See `backend.md`.
 - **One migration history, many schema files**: each layer owns its tables, but one database has a single order of changes.
 - **Column and state move together**: the brief overrides the product spec's "columns do not define state". Moving an item between columns therefore changes its state.
