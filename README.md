@@ -55,51 +55,47 @@ Deep-dive documentation is organized in [`docs/`](docs/README.md):
 
 ---
 
-## Quick Start (Control Plane Cheatsheet)
+## Quick Start & Workflows
 
 All platform operations are orchestrated through standard `make` targets.
 
-### 1. Creating a New Prototype
+### Path A: Inspecting Existing Runs (Fresh Clone)
 
-#### Agent-Guided
+> *If starting fresh with no runs in the repo, skip `make init` and proceed directly to Path B.*
 
-1. Simply reference `@PROMPT.md` in your agent chat:
-   ```text
-   @PROMPT.md
-   ```
-2. Let the agent guide you: it will ask for the 3-digit run number and your idea, create its workspace, and build the prototype.
-3. Open in your browser: http://localhost:3XXX (replacing XXX with the 3 digits)
+If you just cloned a branch containing existing prototype runs (e.g. `prototypes/run-100/`):
 
-#### Manual
+```bash
+make init           # Bootstraps base images and batch-seeds existing runs (once on clone)
+make up RUN=100     # Starts run-100 and DB engines (http://localhost:3100)
+```
 
-1. Scaffold, start, and seed the prototype container (e.g. `run-100` on port `3100`):
+---
+
+### Path B: Building a New Prototype Run
+
+Choose whichever starting interface fits your workflow:
+
+#### 1. Chat-First (Agent Prompt & Save)
+Start directly from your **agent chat** without touching the terminal:
+- Prompt: `@PROMPT.md`
+- Provide your 3-digit run number (e.g. `100`) and scenario idea. The agent scaffolds the run, authors `briefs/run-100.md`, implements the code, seeds the database, and verifies the UI.
+- Open `http://localhost:3100` (or `http://localhost:3XXX` matching your run number).
+
+#### 2. Terminal-First (Scaffold & Build)
+Prepare the container and brief in your editor before building:
+1. Scaffold code, docs, and database:
    ```bash
    make new RUN=100 DB=hybrid
    make up RUN=100
-   make seed RUN=100
    ```
-2. Write your brief in `briefs/run-100.md`.
-3. Prompt your agent in chat:
-   ```text
-   @PROMPT.md 100
-   ```
-4. Open in your browser: http://localhost:3100
+2. Write your scenario requirements in `briefs/run-100.md`.
+3. Build the prototype:
+   - **With an agent:** Prompt `@PROMPT.md 100` in chat.
+   - **Manually:** Implement your code, author `server/seed.ts`, and run `make seed RUN=100`.
+4. Open `http://localhost:3100`.
 
-### 2. Initializing Existing Prototype Runs (`make init`)
-
-> [!IMPORTANT]
-> `make init` is only needed and only takes effect when **existing prototype runs are present** in the repository (e.g. after cloning a repository or branch that already contains `prototypes/run-100/`). It pulls base images, boots the database engines, and batch-seeds every existing prototype before shutting down.
-
-```bash
-# Pulls base images, boots shared DB engines, seeds all existing runs, and shuts down cleanly
-make init
-
-# Then start whichever prototype you want to inspect:
-make up RUN=100
-
-# Open in your browser:
-# http://localhost:3100
-```
+---
 
 ### Full Target Reference
 

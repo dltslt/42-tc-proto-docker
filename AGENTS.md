@@ -79,7 +79,11 @@ Every prototype implements `package.json` with `"db:seed": "tsx server/seed.ts"`
 ```bash
 make seed RUN=100    # Executes 'pnpm run db:seed' inside container run-100
 ```
-The seed script must be idempotent: creating schemas/collections if missing and inserting baseline fixtures safely.
+
+### The Seeding Rules
+
+- **Mandatory for DB runs:** If a prototype uses a database (`DB=hybrid`, `postgres`, or `mongo`), authoring `server/seed.ts` and executing `make seed RUN=XXX` is **mandatory**. Scaffolding only creates an empty database and a skeleton connectivity check; you must define tables/collections and insert initial fixtures.
+- **Strict Idempotency:** The seed script must be safe to run repeatedly over an already-seeded database (`CREATE TABLE IF NOT EXISTS`, `ON CONFLICT DO NOTHING` or upserts, checking existing MongoDB documents). Running `make seed` multiple times must never crash or create duplicate records.
 
 ---
 
@@ -141,10 +145,11 @@ make logs RUN=100                                 # Tails container logs
 1. **Environment & Brief:** Ensure you have your work environment in `prototypes/run-XXX/`. When your brief and product context or data foundation disagree, the brief wins.
 2. **Deconstruct:** Split the slice into small, digestible chunks that a reviewer can read as a single concept.
 3. **Authorship:** Create the `<harness>-<model>` file at the prototype code root (`prototypes/<run-dir>/<harness>-<model>`).
-4. **Incremental Implementation:** Build chunk by chunk. Add 1-line orientation comments for framework mechanisms. Run `make seed RUN=XXX` when updating `server/seed.ts`. Commit each chunk using the scoped git workflow.
-5. **Documentation:** Maintain `docs/<run-dir>/design.md`, `docs/<run-dir>/frontend.md`, and `docs/<run-dir>/backend.md`. Update them as design evolves.
-6. **Browser Verification:** Verify every criteria under "Done when" in the brief directly in the browser (`http://localhost:3XXX`).
-7. **Wrap-up:** Write `docs/<run-dir>/NOTES.md`, commit it, and repeat its summary in the final response.
+4. **Incremental Implementation:** Build chunk by chunk. Add 1-line orientation comments for framework mechanisms. Commit each chunk using the scoped git workflow.
+5. **Database Seeding:** For DB runs, implement `server/seed.ts` and run `make seed RUN=XXX`.
+6. **Documentation:** Maintain `docs/<run-dir>/design.md`, `docs/<run-dir>/frontend.md`, and `docs/<run-dir>/backend.md`. Update them as design evolves.
+7. **Browser Verification:** Verify every criteria under "Done when" in the brief directly in the browser (`http://localhost:3XXX`) against the live seeded database state. Verify that running `make seed RUN=XXX` again is cleanly idempotent.
+8. **Wrap-up:** Write `docs/<run-dir>/NOTES.md`, commit it, and repeat its summary in the final response.
 
 ### 4. Authorship (`<harness>-<model>`)
 
