@@ -95,6 +95,11 @@ services:
       - DB_NAME=proto_run_500
     volumes:
       - ./prototypes/run-500:/app
+      - type: volume
+        source: pnpm_store
+        target: /app/node_modules
+        volume:
+          subpath: run-500/node_modules
 
 volumes:
   postgres_data:
