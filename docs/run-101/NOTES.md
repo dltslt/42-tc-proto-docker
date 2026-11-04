@@ -44,19 +44,24 @@ Found in review on 2026-11-04. The brief's own tests would still pass if these w
 - **Test with two real connections.** Simultaneous edits and moves need two connections at once. On a single connection the tests pass without testing anything simultaneous.
 - **Handle tied order keys, with a test.** Simultaneous moves can give two siblings the same `position`, and `generateKeyBetween` throws when both neighbours have the same key. The test makes two siblings share a key, drops a card between them and expects no 500.
 
+## Task 7 must do
+- **`LISTEN` needs its own connection.** A pooled connection is returned to the pool and loses its subscription. Each server process opens one dedicated `pg.Client`, outside the pool, and reconnects it if it drops.
+
 ## Known limits
 - **Spaces and actors cannot be deleted.** Events are append-only and have foreign keys to both, so the database refuses. Names and old text also stay in the history, which matters for account deletion and privacy rules. Decide on hiding, anonymising or changing the rule before building any delete for them.
+- **A new space needs a column for every state.** Nothing in the database enforces it, only a seed test checks the fixtures. The default column for a new item is the first `unstarted` column, so a space without one would fail on create. Any future "create space" route must create the four default columns in the same transaction.
 - **`make seed` is the only way to apply migrations.** After pulling a new migration, run it or the app fails with a database error. The user chose not to add a separate `db:migrate` for this run; a real deployment would need one, so it can update the database without adding demo data.
 
 ## Working notes
 - Adding a package: `docker compose exec run-101 pnpm add --store-dir /root/.local/share/pnpm/store <package>`. Without `--store-dir`, pnpm fails with "Unexpected store location".
 - Files written by a command inside the container belong to root on the host. After `pnpm add` or `db:generate`, run `chown` inside the container with the host user's id, or later edits on the host fail. `package.json`, `pnpm-lock.yaml` and `server/db` need it.
 - Drizzle wraps driver errors, so task 5 must read the Postgres code and constraint from `error.cause` to turn them into 4xx responses.
+- Type-check: `docker compose exec run-101 pnpm typecheck`. TypeScript is pinned to 5.x because `vue-tsc` 3.3.14 does not work with TypeScript 7. Playwright is still not a dependency: add it with the first browser test (task 6 or 7).
 - The template's `hmr.clientPort` setting logs a Vite deprecation warning in the server log. The browser console is clean.
 
 ## Verification status
 Task 1, in headless Chromium through Playwright: `/` lands on the board, the navigation link opens the tree, and the console has no warnings or errors. With `layers/tree` moved away, `/board` returned 200, `/tree` returned 404 and the link was gone. Three Vitest tests cover the registry. Playwright was run from a temporary folder, so it is not a project dependency yet.
 
-Task 1 review, repeated independently: removing `layers/tree` or `layers/board` in turn gave 404 for that view only, and the link went with it. The browser flow still passes, and the app and server type-check clean.
+Task 1 review, repeated independently: removing `layers/tree` or `layers/board` in turn gave 404 for that view only, and the link went with it. The browser flow still passes, and the app and server type-check clean. (`typescript` and `vue-tsc` were not installed at the time, so this was re-verified on 2026-11-04 after adding them: `pnpm typecheck` passes, and fails on a deliberate type error.)
 
 Task 2: on a database emptied by hand, `make seed RUN=101` applied both migrations and inserted 4 spaces, 4 actors, 7 memberships, 17 columns, 19 items and 19 events. Repeating it, including two runs at once, inserted nothing. An unreachable host fails with a readable error after 30 seconds, and a wrong password fails right away. 23 Vitest tests pass, 20 of them against the real database. Applying migrations to an empty database while another seed runs at the same time was not tested. `make init` on a fresh clone was not run, because it would stop the other runs' containers.

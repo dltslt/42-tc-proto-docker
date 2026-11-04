@@ -11,7 +11,8 @@
     "postinstall": "nuxt prepare",
     "db:seed": "tsx server/seed.ts",
     "db:generate": "drizzle-kit generate",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "nuxt typecheck"
   },
   "dependencies": {
     "@iconify-json/lucide": "^1.2.151",
@@ -30,6 +31,8 @@
     "@types/pg": "^8.11.10",
     "drizzle-kit": "0.31.11",
     "tsx": "^4.19.2",
-    "vitest": "^5.1.0"
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0",
+    "vue-tsc": "3.3.14"
   }
 }
