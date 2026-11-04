@@ -5,3 +5,4 @@
 CREATE DATABASE proto_template;
 
 CREATE DATABASE proto_run_100;
+CREATE DATABASE proto_run_101;
