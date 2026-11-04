@@ -1,32 +1,39 @@
 # Design: run-100
 
 ## Overview
-A brief description of this prototype run, the scenario under evaluation from the assigned brief, and the primary technical questions being answered.
+Baseline Lerch slice (brief: `briefs/run-100.md`): spaces & actors, items with a recursive `parent_id`
+hierarchy, one-line creation, and a kanban board plus tree view. Everything is carried vertically:
+Vue UI (Nuxt UI + Tailwind) -> Nitro API -> PostgreSQL. The question: can this baseline grow into a
+production tool without a rewrite? The answer here is to isolate every future change point
+(permissions, ordering, default column, SQL, identity) in one small module.
 
 ## System Data Flow
 
 ```mermaid
 flowchart TD
     Browser["Host Browser (localhost:3100)"]
-    
+
     subgraph Container["Nuxt 4 Container (run-100)"]
         Universal["Universal SSR / Vue Client"]
         NitroAPI["Nitro Server API (server/api/)"]
     end
-    
-    subgraph Databases["Database Engines"]
-        PG["PostgreSQL (postgres:5432 / proto_run_100)"]
-        Mongo["MongoDB (mongo:27017 / proto_run_100)"]
-    end
 
-    Browser -->|HTTP Request / WebSocket HMR| Universal
-    Universal -->|Internal $fetch| NitroAPI
-    NitroAPI -->|pg Pool / SQL Query| PG
-    NitroAPI -->|MongoClient / BSON| Mongo
+    PG["PostgreSQL (postgres:5432 / proto_run_100)"]
+
+    Browser -->|HTTP / HMR websocket| Universal
+    Universal -->|$fetch / useFetch| NitroAPI
+    NitroAPI -->|pg Pool, parameterized SQL| PG
 ```
 
 ## Architectural Decisions
-- **Execution Boundaries**: Where specific logic lives (Client-only, Universal SSR, or Server-only Nitro).
-- **Persistence Strategy**: Entities stored in PostgreSQL vs. MongoDB.
-- **Key Trade-offs**: Trade-offs made in this prototype.
-
+- **Execution boundaries**: `server/` runs only in Node (DB access, validation, policies). `app/` is universal
+  (SSR then hydration); drag-and-drop handlers run only in the browser. `shared/` holds types and constants
+  used by both sides.
+- **Persistence**: PostgreSQL, tables `spaces`, `actors`, `memberships`, `items` (`parent_id` self-reference).
+  Text ids (readable slugs in the seed, UUIDs at runtime).
+- **Board columns** are a field on the item (`board_column`) mapped to a state in `shared/utils/columns.ts`.
+  Moving a card sets the state, and changing the state moves the card (server-side, `server/utils/items.ts`).
+- **Product stubs** live in `server/utils/policies.ts`: `can()`, ordering, default column.
+- **Identity**: no auth. The persona id is sent as `x-actor-id`; every item route checks space membership.
+- **Trade-offs**: float `position` (cheap midpoint inserts, needs rebalancing eventually); no delete
+  (use state `discarded`); board shows every item of the space, not one project's subtree.
