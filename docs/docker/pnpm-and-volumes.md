@@ -124,6 +124,34 @@ Because `pnpm_store` houses both the central `store` and each prototype's `node_
 - Packages downloaded by `template` or `run-100` are immediately available locally to `run-101` through `run-999` without network transfers or disk duplication.
 - `/app/.nuxt` stays on a lightweight anonymous volume because Nuxt's build cache consists only of generated local files, not hard-linked store packages.
 
+### Subpath Initialization & The `pnpm-init` Helper
+
+In Docker Engine (Moby), mounting a named volume via `volume.subpath` enforces a strict precondition: **the target subdirectory must already exist inside the volume storage backend**. If the volume is newly created or wiped (e.g. fresh clone or `make clean-all`), Docker does not automatically generate nested subdirectories and refuses to start the container:
+
+```text
+Error response from daemon: cannot access path .../_data/store: lstat .../_data/store: no such file or directory
+```
+
+Furthermore, `base-proto` cannot initialize its own subpaths because its service definition already attaches `subpath: store` (a chicken-and-egg trap where container creation fails before any entrypoint can run).
+
+To solve this cleanly, `docker-compose.yml` provides a lightweight internal helper service:
+
+```yaml
+pnpm-init:
+  profiles: ["internal"]
+  image: node:22-slim
+  volumes:
+    - pnpm_store:/pnpm_store
+```
+
+Because `pnpm-init` mounts the **root** of `pnpm_store` without any subpaths, it attaches unconditionally. The control plane (`make up`, `make up-all`, and `make init`) executes a fast (~200ms) one-liner before booting the target prototype container:
+
+```bash
+docker compose run --rm -T --no-deps pnpm-init sh -c "mkdir -p /pnpm_store/store /pnpm_store/$run/node_modules"
+```
+
+This guarantees all subpaths exist prior to container attachment without hardcoding Docker volume driver paths or requiring host-level `sudo` filesystem permissions.
+
 ---
 
 ## 4. Host Tooling & Corepack Considerations

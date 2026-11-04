@@ -137,6 +137,11 @@ EOF
 
 echo "Added service '$RUN' (port $PORT:$PORT) to docker-compose.yml."
 
+# 5b. Pre-seed shared pnpm volume subpaths if Docker engine is accessible
+if docker compose ps >/dev/null 2>&1; then
+  docker compose run --rm -T --no-deps pnpm-init sh -c "mkdir -p /pnpm_store/store /pnpm_store/$RUN/node_modules" 2>/dev/null || true
+fi
+
 # 6. Database provisioning (cold-start SQL + live container provisioning)
 if [[ "$DB" == "postgres" || "$DB" == "hybrid" ]]; then
   SQL_FILE="docker/postgres/init/01-create-databases.sql"

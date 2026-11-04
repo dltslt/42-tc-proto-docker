@@ -136,6 +136,20 @@ When scaffolding a new run (e.g., `run-100`), the generator appends a minimal de
 
 This design guarantees that each prototype inherits identical runtime dependencies, environment contracts, and network settings while remaining completely isolated in terms of source code (`./prototypes/run-100`), dependency tree (`subpath: run-100/node_modules` hard-linked to `subpath: store` on the same `pnpm_store` volume), listening port (`3100`), and logical database (`proto_run_100`).
 
+### Storage Initialization Helper (`pnpm-init`)
+
+Because Docker's `volume.subpath` mount option requires target directories inside the named volume to exist beforehand, `docker-compose.yml` includes an internal lifecycle helper:
+
+```yaml
+  pnpm-init:
+    profiles: ["internal"]
+    image: node:22-slim
+    volumes:
+      - pnpm_store:/pnpm_store
+```
+
+It mounts the volume root (no subpaths) and is invoked automatically by the Makefile control plane (`make up`, `make up-all`, `make init`) to provision missing directory structures before any subpath-dependent service container starts.
+
 ---
 
 ## 4. Compose Profiles for Selective Orchestration
