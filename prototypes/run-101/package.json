@@ -1,5 +1,5 @@
 {
-  "name": "template",
+  "name": "run-101",
   "type": "module",
   "private": true,
   "packageManager": "pnpm@12.16.1",
@@ -9,18 +9,24 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "db:seed": "tsx server/seed.ts"
+    "db:seed": "tsx server/seed.ts",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@iconify-json/lucide": "^1.2.151",
+    "@nuxt/ui": "^4.12.0",
     "mongodb": "^6.10.0",
     "nuxt": "^4.6.3",
     "pg": "^8.13.1",
+    "tailwindcss": "^4.3.4",
     "vue": "^3.5.44",
-    "vue-router": "^5.4.0"
+    "vue-router": "^5.4.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
     "@types/pg": "^8.11.10",
-    "tsx": "^4.19.2"
+    "tsx": "^4.19.2",
+    "vitest": "^5.1.0"
   }
 }

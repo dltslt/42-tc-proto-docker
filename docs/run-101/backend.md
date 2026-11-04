@@ -1,19 +1,4 @@
 # Backend Architecture: run-101
 
-## Server Endpoints
-Documentation of Nitro server event handlers in `server/api/`:
-- `GET /api/...`: Description, query parameters, response payload.
-- `POST /api/...`: Description, body schema, status codes.
-
-## Database Integration
-- **PostgreSQL Schemas & Queries**:
-  - Tables utilized: e.g. `spaces`, `members`, `actors`.
-  - Indexes and constraints.
-- **MongoDB Collections & Pipelines**:
-  - Collections utilized: e.g. `tasks`, `events`, `blockers`.
-  - Aggregation pipelines and document structures.
-
-## Validation & Error Handling
-- Input validation mechanics (e.g. `readBody`, schemas).
-- HTTP error codes returned (`createError`).
-
+There is no backend code yet. `server/seed.ts` is still the template's connectivity check. The planned schema, API and
+write path are in `briefs/run-101.md`, and this file gets filled in from task 2.
