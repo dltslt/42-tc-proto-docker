@@ -144,9 +144,9 @@ make logs RUN=100                                 # Tails container logs
 
 **Workflow Steps:**
 1. **Environment & Brief:** Scaffold the run (`make new RUN=XXX [DB=...]`) if it doesn't exist and verify or create `briefs/<run-dir>.md`. When your brief and product context or data foundation disagree, the brief wins.
-2. **Authorship & Scaffold Commit:** Create the `<harness>-<model>` file at the prototype code root (`prototypes/<run-dir>/<harness>-<model>`). Commit the initial scaffolded directory, harness file, docs template, brief (if newly created), and platform registration files (`docker-compose.yml` and `01-create-databases.sql` if modified) using the initial scaffold commit pattern in Section 7.
+2. **Authorship & Scaffold Commit:** Create the `<harness>-<model>` file at the prototype code root (`prototypes/<run-dir>/<harness>-<model>`). Commit the initial scaffolded directory, harness file, docs template, brief (if newly created), and platform registration files (`docker-compose.yml` and `01-create-databases.sql` if modified) using the initial scaffold commit pattern in Section 7 applying the `git-commit` skill.
 3. **Deconstruct:** Split the slice into small, digestible chunks that a reviewer can read as a single concept.
-4. **Incremental Implementation:** Build chunk by chunk. Add 1-line orientation comments for framework mechanisms. Commit each chunk using the scoped git workflow.
+4. **Incremental Implementation:** Build chunk by chunk. Add 1-line orientation comments for framework mechanisms. Commit each chunk using the scoped git workflow and `git-commit` skill.
 5. **Database Seeding:** For DB runs, implement `server/seed.ts` and run `make seed RUN=XXX`.
 6. **Documentation:** Maintain `docs/<run-dir>/design.md`, `docs/<run-dir>/frontend.md`, and `docs/<run-dir>/backend.md`. Update them as design evolves.
 7. **Browser Verification:** Verify every criteria under "Done when" in the brief directly in the browser (`http://localhost:3XXX`) against the live seeded database state. Verify that running `make seed RUN=XXX` again is cleanly idempotent.
@@ -193,7 +193,7 @@ Every prototype maintains its technical documentation inside the project root's 
 
 ### 7. Scoped Git Workflow
 
-Follow Conventional Commits using the `.agents/skills/git-commit` guidelines. Commit messages should have a clear scope identifying the modified component or prototype:
+Following Conventional Commits using the `.agents/skills/git-commit` guidelines is mandatory. Commit messages have a clear scope identifying the modified component or prototype. These commands are **pathspec and scoping examples** showing how to isolate files and format the commit scope only:
 
 #### A. Initial Scaffold Commit
 Scaffolding via `make new` modifies root orchestration files so that the prototype can run immediately after a clean clone. Commit the initial scaffolded files, docs, and modified orchestration files:
@@ -231,5 +231,5 @@ git commit -m "feat(run-106,ui): render kanban board columns" -- prototypes/run-
 
 ### 8. Agent Skills
 
-- `git-commit` (`.agents/skills/git-commit/SKILL.md`): Format commit messages following Conventional Commits.
+- `git-commit` (`.agents/skills/git-commit/SKILL.md`): Format commit messages following Conventional Commits (changelog subjects, bullet bodies, attribution trailer).
 - `modern-web-guidance` (`.agents/skills/modern-web-guidance/SKILL.md`): Guidance for HTML, CSS, and client-side JS APIs.
