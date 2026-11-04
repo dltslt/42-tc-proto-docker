@@ -2,7 +2,7 @@
 // routes and SQL, so a real rule can replace each stub without touching anything else.
 // `COLUMNS` and the types come from shared/ (auto-imported by Nitro).
 
-export type Action = 'item:read' | 'item:create' | 'item:update'
+export type Action = 'item:read' | 'item:create' | 'item:update' | 'item:delete'
 
 // Permission check. Default: allow all. Real roles (admin/member) would be decided here.
 export function can(_actor: { id: string }, _action: Action, _resource: unknown): boolean {

@@ -23,6 +23,7 @@ export const patchBody = z.object({
   board_column: z.enum(COLUMN_KEYS).optional(),
   before_id: id.optional(), // drop position: place the item right before this one
   lead_id: id.nullable().optional(),
+  parent_id: id.nullable().optional(), // reparent; null makes the item a root
 }).strict().refine(p => Object.keys(p).length > 0, 'nothing to update')
 
 // Turns a zod failure into an HTTP 400 with a readable message (instead of a 500).

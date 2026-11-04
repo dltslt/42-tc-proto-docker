@@ -45,6 +45,26 @@ async function positionFor(item: Item, column: ColumnKey, beforeId?: string): Pr
   return endPosition(item.space_id, column)
 }
 
+// A new parent must exist in the same space and must not be the item itself or one of its descendants.
+async function assertValidParent(item: Item, parentId: string): Promise<void> {
+  const parent = await findItem(parentId)
+  if (!parent || parent.space_id !== item.space_id) {
+    throw createError({ statusCode: 400, message: 'parent_id: parent not found in this space' })
+  }
+  // Recursive CTE: walk from the new parent up to the root. If we meet the item, it would become its own ancestor.
+  // (UNION, not UNION ALL, so the walk also terminates if the data were ever corrupt.)
+  const { rowCount } = await getPool().query(
+    `WITH RECURSIVE ancestors AS (
+       SELECT id, parent_id FROM items WHERE id = $1
+       UNION
+       SELECT i.id, i.parent_id FROM items i JOIN ancestors a ON i.id = a.parent_id
+     )
+     SELECT 1 FROM ancestors WHERE id = $2`,
+    [parentId, item.id],
+  )
+  if (rowCount) throw createError({ statusCode: 400, message: 'parent_id: an item cannot be moved under itself or its own descendants' })
+}
+
 export async function createItem(input: z.infer<typeof createBody>): Promise<Item> {
   let type = input.type
   if (input.parent_id) {
@@ -77,6 +97,11 @@ export async function updateItem(current: Item, patch: z.infer<typeof patchBody>
     next.lead_id = patch.lead_id
   }
 
+  if (patch.parent_id !== undefined) {
+    if (patch.parent_id) await assertValidParent(current, patch.parent_id)
+    next.parent_id = patch.parent_id
+  }
+
   // Column and state move together: whichever one the client sent implies the other.
   let { state, board_column: column } = patch
   if (column && !state) state = stateForColumn(column)
@@ -97,6 +122,23 @@ export async function updateItem(current: Item, patch: z.infer<typeof patchBody>
     [...keys.map(k => next[k]), current.id],
   )
   return rows[0]!
+}
+
+// Deletes the item and, through ON DELETE CASCADE on parent_id, its whole subtree.
+// Returns how many items were removed so the UI can tell the user.
+export async function deleteItem(id: string): Promise<number> {
+  const { rows } = await getPool().query(
+    `WITH RECURSIVE subtree AS (
+       SELECT id FROM items WHERE id = $1
+       UNION
+       SELECT i.id FROM items i JOIN subtree s ON i.parent_id = s.id
+     ), gone AS (
+       DELETE FROM items WHERE id = $1 RETURNING id
+     )
+     SELECT count(*)::int AS n FROM subtree`,
+    [id],
+  )
+  return rows[0].n
 }
 
 export async function loadRoster(): Promise<Roster> {
