@@ -117,6 +117,7 @@ Read these, in this order:
 - **Code Directory**: Write prototype code **strictly** inside `prototypes/<run-dir>/` (e.g. `prototypes/run-100/`).
 - **Documentation Directory**: Write prototype documentation **strictly** inside `docs/<run-dir>/` (e.g. `docs/run-100/`).
 - **Brief File**: Read or create only `briefs/<run-dir>.md` (e.g. `briefs/run-100.md`).
+- **Platform Registration**: `make new` modifies root orchestration files (`docker-compose.yml` and, for Postgres/hybrid runs, `docker/postgres/init/01-create-databases.sql`). Committing these modifications during initial scaffolding is expected and required so the stack functions cleanly after a fresh clone.
 - Do not edit `prototypes/template/`, `docs/template/`, `specs/`, other files in `briefs/`, `AGENTS.md`, `README.md`, `PROMPT.md`, or other prototype directories.
 - Do not inspect, search, or diff any other prototype directory. Search only inside your designated run and docs directories. An empty "Findings from earlier runs" section in a brief stays empty unless explicitly filled by hand.
 
@@ -142,9 +143,9 @@ make logs RUN=100                                 # Tails container logs
 ```
 
 **Workflow Steps:**
-1. **Environment & Brief:** Ensure you have your work environment in `prototypes/run-XXX/`. When your brief and product context or data foundation disagree, the brief wins.
-2. **Deconstruct:** Split the slice into small, digestible chunks that a reviewer can read as a single concept.
-3. **Authorship:** Create the `<harness>-<model>` file at the prototype code root (`prototypes/<run-dir>/<harness>-<model>`).
+1. **Environment & Brief:** Scaffold the run (`make new RUN=XXX [DB=...]`) if it doesn't exist and verify or create `briefs/<run-dir>.md`. When your brief and product context or data foundation disagree, the brief wins.
+2. **Authorship & Scaffold Commit:** Create the `<harness>-<model>` file at the prototype code root (`prototypes/<run-dir>/<harness>-<model>`). Commit the initial scaffolded directory, harness file, docs template, brief (if newly created), and platform registration files (`docker-compose.yml` and `01-create-databases.sql` if modified) using the initial scaffold commit pattern in Section 7.
+3. **Deconstruct:** Split the slice into small, digestible chunks that a reviewer can read as a single concept.
 4. **Incremental Implementation:** Build chunk by chunk. Add 1-line orientation comments for framework mechanisms. Commit each chunk using the scoped git workflow.
 5. **Database Seeding:** For DB runs, implement `server/seed.ts` and run `make seed RUN=XXX`.
 6. **Documentation:** Maintain `docs/<run-dir>/design.md`, `docs/<run-dir>/frontend.md`, and `docs/<run-dir>/backend.md`. Update them as design evolves.
@@ -194,7 +195,20 @@ Every prototype maintains its technical documentation inside the project root's 
 
 Follow Conventional Commits using the `.agents/skills/git-commit` guidelines. Commit messages should have a clear scope identifying the modified component or prototype:
 
-Commit only your own prototype code, documentation, and (when created via Prompt & Save) `briefs/<run-directory>.md`. The commit message scope **must** identify the run directory, and git commands **must** use explicit pathspecs (`-- prototypes/<run-directory> docs/<run-directory>` and `briefs/<run-directory>.md` if created):
+#### A. Initial Scaffold Commit
+Scaffolding via `make new` modifies root orchestration files so that the prototype can run immediately after a clean clone. Commit the initial scaffolded files, docs, and modified orchestration files:
+
+```bash
+# Include docker/postgres/init/01-create-databases.sql if Postgres/hybrid; include briefs/<run-directory>.md if newly created:
+git add prototypes/<run-directory> docs/<run-directory> docker-compose.yml \
+  docker/postgres/init/01-create-databases.sql briefs/<run-directory>.md
+git commit -m "chore(<run-directory>,scaffold): scaffold prototype and register service" -- \
+  prototypes/<run-directory> docs/<run-directory> docker-compose.yml \
+  docker/postgres/init/01-create-databases.sql briefs/<run-directory>.md
+```
+
+#### B. Subsequent Implementation Chunks
+For all subsequent implementation chunks, commit **strictly** prototype code and documentation. Git commands **must** use explicit pathspecs (`-- prototypes/<run-directory> docs/<run-directory>`):
 
 ```bash
 git add prototypes/<run-directory> docs/<run-directory>
@@ -209,10 +223,11 @@ git commit -m "feat(run-106,ui): render kanban board columns" -- prototypes/run-
 
 #### Why this matters:
 1. **History Scoping:** The `<type>(<run-directory>,<scope>)` format allows immediate identification of which prototype a commit belongs to in `git log --oneline`.
-2. **Pathspec Isolation:** Passing `-- prototypes/<run-directory> docs/<run-directory>` ensures git commits **only** changes inside that prototype and its documentation, preventing accidentally bundling unstaged files from other runs or root platform configuration.
-3. **Atomic Changes:** Code changes and their corresponding technical documentation are versioned together in a single atomic commit.
-4. **Filtered Log Queries:** Developers can run `git log -- prototypes/<run-directory> docs/<run-directory>` to view the exact history of a single prototype without noise from concurrent prototypes.
-5. **No Blanket Adds:** Never run `git add -A`, `git add .`, or `git commit` without a path argument.
+2. **Clone Reproducibility:** Including platform registration files (`docker-compose.yml` and conditional `01-create-databases.sql`) in the scaffold commit guarantees that any fresh `git clone` can immediately run `make init`, `make up`, and `make seed` without missing container services or uninitialized databases.
+3. **Pathspec Isolation:** Passing explicit pathspecs prevents accidentally bundling unstaged changes from other runs or untracked local experiments. After the initial scaffold commit, no root files may be included in commits.
+4. **Atomic Changes:** Code changes and their corresponding technical documentation are versioned together in a single atomic commit.
+5. **Filtered Log Queries:** Developers can run `git log -- prototypes/<run-directory> docs/<run-directory>` to view the exact history of a single prototype without noise from concurrent prototypes.
+6. **No Blanket Adds:** Never run `git add -A`, `git add .`, or `git commit` without a path argument.
 
 ### 8. Agent Skills
 
