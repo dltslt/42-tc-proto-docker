@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help init new up up-all down ps seed logs logs-all sh db-reset
+.PHONY: help init new up up-all down clean clean-all ps seed logs logs-all sh db-reset
 
 # Normalize RUN: 100 -> run-100, run-100 -> run-100, template -> template
 NORM_RUN = $(shell bash -c 'r="$(RUN)"; if [[ "$$r" =~ ^[0-9]+$$ ]]; then printf "run-%03d" "$$r"; elif [[ "$$r" =~ ^run-([0-9]+)$$ ]]; then printf "run-%03d" "$${BASH_REMATCH[1]}"; else echo "$$r"; fi')
@@ -47,6 +47,14 @@ up-all: ## Start all prototypes simultaneously
 
 down: ## Stop all running prototype containers
 	docker compose --profile all down
+
+clean: ## Remove container and anonymous volumes for a prototype (Usage: make clean RUN=100 or make clean RUN=template)
+	@run="$(NORM_RUN)"; \
+	if [ -z "$$run" ]; then echo "Error: RUN is required (e.g. make clean RUN=100 or make clean RUN=template, or use make clean-all)" >&2; exit 1; fi; \
+	docker compose --profile "$$run" rm -s -f -v "$$run"
+
+clean-all: ## Stop and remove all containers and volumes across the stack
+	docker compose --profile "*" down -v --remove-orphans
 
 ps: ## List running containers in the compose stack (Usage: make ps or make ps RUN=100)
 	@run="$(NORM_RUN)"; \

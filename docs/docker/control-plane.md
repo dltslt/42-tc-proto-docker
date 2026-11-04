@@ -127,6 +127,29 @@ make down
 
 ---
 
+### `make clean`
+Stops and deletes the container and anonymous volumes (`/app/node_modules`, `/app/.nuxt`) for a single prototype run without affecting shared databases or other runs.
+```bash
+make clean RUN=100
+# Or clean the template container:
+make clean RUN=template
+```
+- Targets only the specified service container (`$$run`).
+- Uses `docker compose --profile "$$run" rm -s -f -v "$$run"` to stop the container, delete it, and purge attached anonymous volumes.
+- Preserves the shared `pnpm_store` named volume, PostgreSQL, MongoDB, and any other running prototype containers.
+
+---
+
+### `make clean-all`
+Stops and deletes all containers and volumes across the entire stack.
+```bash
+make clean-all
+```
+- Executes `docker compose --profile "*" down -v --remove-orphans`.
+- Destroys all containers, network bridges, named volumes (`postgres_data`, `mongo_data`, `pnpm_store`), and anonymous volumes across this Compose project.
+
+---
+
 ### `make db-reset`
 Completely wipes all database volumes and reinitializes PostgreSQL and MongoDB from scratch.
 ```bash

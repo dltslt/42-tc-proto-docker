@@ -111,6 +111,8 @@ Prepare the container and brief in your editor before building:
 | `make logs-all` | Tails logs across all running prototype containers | `make logs-all` |
 | `make sh` | Opens `/bin/sh` shell inside prototype container | `make sh RUN=100` |
 | `make down` | Stops all running containers cleanly | `make down` |
+| `make clean` | Removes container and anonymous volumes for a prototype | `make clean RUN=100` |
+| `make clean-all` | Stops and removes all containers and volumes across the stack | `make clean-all` |
 | `make db-reset` | Wipes database volumes and reinitializes fresh engines | `make db-reset` |
 
 ---
