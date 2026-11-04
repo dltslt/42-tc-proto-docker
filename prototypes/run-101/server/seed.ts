@@ -1,73 +1,46 @@
-// Server-only script: runs inside the Node container to verify DB connectivity
-// Programmatic contract: executed via `pnpm db:seed`
-import pg from 'pg'
-import { MongoClient } from 'mongodb'
+// Server-only script: `make seed RUN=101` runs it inside the container with tsx (plain Node, no Nuxt).
+// There are no auto-imports here, so everything is imported explicitly.
+import type pg from 'pg'
+import { createDatabase } from '../layers/core/server/db/client'
+import { seedFixtures } from './db/fixtures'
+import { applyMigrations } from './db/migrate'
 
-async function checkPostgres(url: string) {
-  const pool = new pg.Pool({ connectionString: url })
+// Connection refused, unknown host (Docker DNS not ready), or Postgres still starting.
+const NOT_READY = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', '57P03'])
+
+// `make init` starts Postgres and seeds right away, so the first attempts can fail while it boots.
+async function waitForDatabase(pool: pg.Pool, timeoutMs = 30_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    try {
+      await pool.query('SELECT 1')
+      return
+    }
+    catch (error) {
+      const code = (error as { code?: string }).code ?? ''
+      if (!NOT_READY.has(code) || Date.now() >= deadline) throw error
+      console.log(`[seed] waiting for PostgreSQL (${code})`)
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+  }
+}
+
+async function main(): Promise<void> {
+  const { pool, db } = createDatabase()
   try {
-    const client = await pool.connect()
-    const res = await client.query('SELECT NOW() as current_time, current_database() as db_name')
-    console.log(`[seed] PostgreSQL connection OK: DB='${res.rows[0].db_name}', Time=${res.rows[0].current_time}`)
-    client.release()
-  } finally {
+    await waitForDatabase(pool)
+    await applyMigrations(db)
+    console.log('[seed] migrations applied')
+    // One transaction: a failure leaves no partial fixtures behind.
+    const inserted = await db.transaction(tx => seedFixtures(tx))
+    console.log('[seed] inserted', inserted)
+  }
+  finally {
     await pool.end()
   }
 }
 
-async function checkMongo(url: string) {
-  const client = new MongoClient(url)
-  try {
-    await client.connect()
-    const db = client.db()
-    const res = await db.command({ ping: 1 })
-    console.log(`[seed] MongoDB connection OK: DB='${db.databaseName}', Ping=${res.ok}`)
-  } finally {
-    await client.close()
-  }
-}
-
-async function runSeed() {
-  const user = process.env.DB_USER
-  const pass = process.env.DB_PASSWORD
-  const pgHost = process.env.POSTGRES_HOST || 'postgres'
-  const pgPort = process.env.POSTGRES_PORT || '5432'
-  const mongoHost = process.env.MONGO_HOST || 'mongo'
-  const mongoPort = process.env.MONGO_PORT || '27017'
-  const db = process.env.DB_NAME || 'proto_template'
-
-  const pgUrl = process.env.POSTGRES_URL || (user && pass ? `postgresql://${user}:${pass}@${pgHost}:${pgPort}/${db}` : undefined)
-  const mongoUrl = process.env.MONGO_URL || (user && pass ? `mongodb://${user}:${pass}@${mongoHost}:${mongoPort}/${db}?authSource=admin` : undefined)
-
-  console.log('[seed] Starting database connectivity health-check...')
-
-  if (!pgUrl && !mongoUrl) {
-    console.warn('[seed] No database configuration found in environment.')
-    return
-  }
-
-  if (pgUrl) {
-    try {
-      await checkPostgres(pgUrl)
-    } catch (err) {
-      console.error('[seed] PostgreSQL connection failed:', err)
-      process.exit(1)
-    }
-  }
-
-  if (mongoUrl) {
-    try {
-      await checkMongo(mongoUrl)
-    } catch (err) {
-      console.error('[seed] MongoDB connection failed:', err)
-      process.exit(1)
-    }
-  }
-
-  console.log('[seed] Health-check completed successfully.')
-}
-
-runSeed().catch((err) => {
-  console.error('[seed] Fatal error during seed execution:', err)
+main().catch((error) => {
+  console.error('[seed] failed:', error)
   process.exit(1)
 })

@@ -22,7 +22,7 @@ flowchart TD
     NitroAPI -->|Drizzle over pg| PG
 ```
 
-Only the shell and the view registry exist so far. The API and database arrive in tasks 2 to 5.
+The shell, view registry and database exist so far. Nothing connects them yet: the API arrives in tasks 3 to 5.
 
 ## Modules
 Each folder in `layers/` is a Nuxt layer, merged into the app automatically. Think of each as a library linked into
@@ -38,3 +38,6 @@ Nuxt does not enforce this direction: auto-imports let any layer call any other,
 - **Execution boundaries**: `layers/*/app` is universal (server render, then browser). `layers/*/server` will be server-only.
 - **Views as plug-ins**: a view registers itself from its own plugin. The shell builds its navigation and routes from the registry, so removing a view folder removes it everywhere.
 - **Key trade-off**: the registry is fixed at app start. Views chosen per user or space will need a filter on top of it.
+- **Rules in the database**: space boundaries and column/state consistency are foreign keys, so no route can break them. See `backend.md`.
+- **One migration history, many schema files**: each layer owns its tables, but one database has a single order of changes.
+- **Column and state move together**: the brief overrides the product spec's "columns do not define state". Moving an item between columns therefore changes its state.
