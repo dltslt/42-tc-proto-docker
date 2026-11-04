@@ -86,26 +86,30 @@ To avoid duplicating 40 lines of container configuration across prototype runs (
 ```yaml
 services:
   base-proto:
-    build:
-      context: .
-      dockerfile: docker/nuxt/Dockerfile
+    profiles: ["base"]
+    image: node:22-slim
+    working_dir: /app
+    command: sh -c "corepack enable && pnpm install && pnpm dev --host 0.0.0.0"
     env_file:
       - .env
     volumes:
-      - pnpm_store:/pnpm-store
-      - /app/node_modules
-    restart: unless-stopped
+      - /app/.nuxt
+      - type: volume
+        source: pnpm_store
+        target: /root/.local/share/pnpm/store
+        volume:
+          subpath: store
     depends_on:
       - postgres
       - mongo
 ```
 
-- **`build.context: .`**: Builds an image containing Node.js, pnpm, and necessary build tools from `docker/nuxt/Dockerfile`.
+- **`image: node:22-slim`**: Uses Debian `glibc` with built-in Corepack to run the exact `packageManager` (`pnpm@12.16.1`) pinned in `package.json`.
 - **`env_file: .env`**: Injects global environment variables (database credentials, default hostnames) into the container environment.
 - **`volumes`**:
-  - `pnpm_store:/pnpm-store`: Named volume mounting the shared pnpm content-addressable storage.
-  - `/app/node_modules`: Anonymous volume masking container dependencies from host filesystem.
-- **`depends_on`**: Ensures database engines are initialized and healthy before prototype containers start.
+  - `/app/.nuxt`: Anonymous volume masking generated Nuxt build/type caches from the host filesystem.
+  - `pnpm_store` (`subpath: store`): Named volume subpath mounting the shared pnpm content-addressable storage at `/root/.local/share/pnpm/store`.
+- **`depends_on`**: Ensures database engines are started before prototype containers boot.
 
 ### Concrete Prototype Definition
 
@@ -123,9 +127,28 @@ When scaffolding a new run (e.g., `run-100`), the generator appends a minimal de
       - DB_NAME=proto_run_100
     volumes:
       - ./prototypes/run-100:/app
+      - type: volume
+        source: pnpm_store
+        target: /app/node_modules
+        volume:
+          subpath: run-100/node_modules
 ```
 
-This design guarantees that each prototype inherits identical runtime dependencies, environment contracts, and network settings while remaining completely isolated in terms of source code (`./prototypes/run-100`), listening port (`3100`), and logical database (`proto_run_100`).
+This design guarantees that each prototype inherits identical runtime dependencies, environment contracts, and network settings while remaining completely isolated in terms of source code (`./prototypes/run-100`), dependency tree (`subpath: run-100/node_modules` hard-linked to `subpath: store` on the same `pnpm_store` volume), listening port (`3100`), and logical database (`proto_run_100`).
+
+### Storage Initialization Helper (`pnpm-init`)
+
+Because Docker's `volume.subpath` mount option requires target directories inside the named volume to exist beforehand, `docker-compose.yml` includes an internal lifecycle helper:
+
+```yaml
+  pnpm-init:
+    profiles: ["internal"]
+    image: node:22-slim
+    volumes:
+      - pnpm_store:/pnpm_store
+```
+
+It mounts the volume root (no subpaths) and is invoked automatically by the Makefile control plane (`make up`, `make up-all`, `make init`) to provision missing directory structures before any subpath-dependent service container starts.
 
 ---
 

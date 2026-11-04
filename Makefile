@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help init new up up-all down ps seed logs logs-all sh db-reset
+.PHONY: help init new up up-all down clean clean-all ps seed logs logs-all sh db-reset
 
 # Normalize RUN: 100 -> run-100, run-100 -> run-100, template -> template
 NORM_RUN = $(shell bash -c 'r="$(RUN)"; if [[ "$$r" =~ ^[0-9]+$$ ]]; then printf "run-%03d" "$$r"; elif [[ "$$r" =~ ^run-([0-9]+)$$ ]]; then printf "run-%03d" "$${BASH_REMATCH[1]}"; else echo "$$r"; fi')
@@ -12,6 +12,15 @@ init: ## Bootstrap stack when runs exist (pulls images, seeds existing runs, shu
 	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from .env.example"; fi
 	@echo "==> Pulling base container images..."
 	@docker compose pull postgres mongo base-proto
+	@echo "==> Initializing shared pnpm storage subpaths..."
+	@dirs="/pnpm_store/store /pnpm_store/template/node_modules"; \
+	for dir in prototypes/run-*/; do \
+		if [ -d "$$dir" ]; then \
+			r=$$(basename "$$dir"); \
+			dirs="$$dirs /pnpm_store/$$r/node_modules"; \
+		fi; \
+	done; \
+	docker compose run --rm -T --no-deps pnpm-init sh -c "mkdir -p $$dirs"
 	@echo "==> Starting database engines..."
 	@docker compose up -d postgres mongo
 	@has_runs=0; \
@@ -40,13 +49,30 @@ new: ## Scaffold a new prototype run (Usage: make new RUN=100 [DB=hybrid|postgre
 up: ## Start a prototype run or template (Usage: make up RUN=100 or make up RUN=template)
 	@run="$(NORM_RUN)"; \
 	if [ -z "$$run" ]; then echo "Error: RUN is required (e.g. make up RUN=100 or make up RUN=template)" >&2; exit 1; fi; \
+	docker compose run --rm -T --no-deps pnpm-init sh -c "mkdir -p /pnpm_store/store /pnpm_store/$$run/node_modules"; \
 	docker compose --profile "$$run" up -d
 
 up-all: ## Start all prototypes simultaneously
+	@dirs="/pnpm_store/store /pnpm_store/template/node_modules"; \
+	for dir in prototypes/run-*/; do \
+		if [ -d "$$dir" ]; then \
+			r=$$(basename "$$dir"); \
+			dirs="$$dirs /pnpm_store/$$r/node_modules"; \
+		fi; \
+	done; \
+	docker compose run --rm -T --no-deps pnpm-init sh -c "mkdir -p $$dirs"; \
 	docker compose --profile all up -d
 
 down: ## Stop all running prototype containers
-	docker compose --profile all down
+	docker compose --profile "*" down
+
+clean: ## Remove container and anonymous volumes for a prototype (Usage: make clean RUN=100 or make clean RUN=template)
+	@run="$(NORM_RUN)"; \
+	if [ -z "$$run" ]; then echo "Error: RUN is required (e.g. make clean RUN=100 or make clean RUN=template, or use make clean-all)" >&2; exit 1; fi; \
+	docker compose --profile "$$run" rm -s -f -v "$$run"
+
+clean-all: ## Stop and remove all containers and volumes across the stack
+	docker compose --profile "*" down -v --remove-orphans
 
 ps: ## List running containers in the compose stack (Usage: make ps or make ps RUN=100)
 	@run="$(NORM_RUN)"; \
@@ -67,7 +93,7 @@ logs: ## Tail logs for a prototype (Usage: make logs RUN=100 or make logs RUN=te
 	docker compose logs -f "$$run"
 
 logs-all: ## Tail logs for all running prototype containers
-	docker compose --profile all logs -f
+	docker compose --profile "*" logs -f
 
 sh: ## Open a shell inside a prototype container (Usage: make sh RUN=100 or make sh RUN=template)
 	@run="$(NORM_RUN)"; \

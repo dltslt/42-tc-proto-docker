@@ -28,6 +28,17 @@ services:
       - mongo_data:/data/db
 
   # ============================================================================
+  # VOLUME INITIALIZER (Internal Lifecycle Helper)
+  # ============================================================================
+  # Mounts the root of pnpm_store to provision subpath directories before
+  # services with volume.subpath mount them (prevents daemon lstat errors).
+  pnpm-init:
+    profiles: ["internal"]
+    image: node:22-slim
+    volumes:
+      - pnpm_store:/pnpm_store
+
+  # ============================================================================
   # BASE PROTOTYPE DEFINITION (Inherited by all prototype runs)
   # ============================================================================
   # Corepack Note: Node's built-in Corepack reads packageManager from package.json
@@ -39,13 +50,16 @@ services:
     profiles: ["base"]
     image: node:22-slim
     working_dir: /app
-    command: sh -c "corepack enable && pnpm install && pnpm dev --host 0.0.0.0"
+    command: sh -c "corepack enable && pnpm install --store-dir /root/.local/share/pnpm/store && pnpm dev --host 0.0.0.0"
     env_file:
       - .env
     volumes:
-      - /app/node_modules
       - /app/.nuxt
-      - pnpm_store:/root/.local/share/pnpm/store
+      - type: volume
+        source: pnpm_store
+        target: /root/.local/share/pnpm/store
+        volume:
+          subpath: store
     depends_on:
       - postgres
       - mongo
@@ -64,6 +78,11 @@ services:
       - DB_NAME=proto_template
     volumes:
       - ./prototypes/template:/app
+      - type: volume
+        source: pnpm_store
+        target: /app/node_modules
+        volume:
+          subpath: template/node_modules
 
   run-500:
     extends:
