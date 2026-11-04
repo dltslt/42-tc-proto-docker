@@ -36,7 +36,7 @@ Nuxt 4, Nuxt UI 4.12 with Tailwind CSS 4, `zod` 4, Vitest 5, Drizzle ORM 0.45.4 
 <!-- Filled at wrap-up -->
 
 ## Changes from the brief
-- `getActor()` moves from `core` to `workspace`, agreed with the user on 2026-11-04 before task 3. The brief is left as written; the reason is in `design.md`.
+- `getActor()` moves from `core` to `workspace`, agreed with the user on 2026-11-04 before task 3. The brief's layer table was corrected to match; the reason is in `design.md`.
 
 ## Working notes
 - Adding a package: `docker compose exec run-101 pnpm add --store-dir /root/.local/share/pnpm/store <package>`. Without `--store-dir`, pnpm fails with "Unexpected store location".
