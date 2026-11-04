@@ -1,6 +1,10 @@
 <script setup lang="ts">
 // Universal Vue component: executes during SSR on Node container, hydrates in browser
-// Nuxt auto-imports: ref, computed, watch, useFetch, definePageMeta
+// Nuxt 4 directory boundary: explicit imports demystify auto-import resolution for C/C++ developers
+import RadialMindmap from './components/RadialMindmap.vue'
+import PlainListView from './components/PlainListView.vue'
+import BenchmarkSuite from './components/BenchmarkSuite.vue'
+import ItemDrawer from './components/ItemDrawer.vue'
 
 // Navigation and view state proxies
 const activeView = ref<'mindmap' | 'list' | 'benchmark'>('mindmap')

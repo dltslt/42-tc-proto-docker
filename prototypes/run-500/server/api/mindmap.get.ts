@@ -27,7 +27,12 @@ export default defineEventHandler(async (event) => {
     const itemsCol = mongo.collection('items')
 
     if (!targetRootId) {
-      const rootDoc = await itemsCol.findOne({ space_id: spaceId, parent_id: null })
+      // Find the canonical root item for this space (excluding test items)
+      const rootDoc = await itemsCol.findOne({
+        space_id: spaceId,
+        parent_id: null,
+        _id: { $not: /^test-/ } as any,
+      })
       targetRootId = rootDoc ? rootDoc._id.toString() : undefined
     }
 
@@ -98,7 +103,9 @@ export default defineEventHandler(async (event) => {
   // PostgreSQL Recursive CTE
   if (!targetRootId) {
     const rootRes = await queryPg<{ id: string }>(
-      'SELECT id FROM items WHERE space_id = $1 AND parent_id IS NULL ORDER BY position ASC LIMIT 1',
+      `SELECT id FROM items
+       WHERE space_id = $1 AND parent_id IS NULL AND id NOT LIKE 'test-%'
+       ORDER BY depth ASC, position ASC LIMIT 1`,
       [spaceId]
     )
     targetRootId = rootRes.rows[0]?.id

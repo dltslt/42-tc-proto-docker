@@ -180,13 +180,15 @@ export default defineEventHandler(async (event) => {
       for (let i = 0; i < batchSize; i++) {
         const offset = i * 4
         valueClauses.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`)
-        params.push(`test-pg-${timestamp}-${i}`, 'space-db-fundamentals', `Ephemeral Item ${i}`, 'unstarted')
+        params.push(`test-pg-${timestamp}-${i}`, 'space-bench-scale', `Ephemeral Item ${i}`, 'unstarted')
       }
       await client.query(
         `INSERT INTO items (id, space_id, title, state) VALUES ${valueClauses.join(', ')}`,
         params
       )
       await client.query('COMMIT')
+      // Immediately delete ephemeral test items to avoid polluting space
+      await client.query(`DELETE FROM items WHERE id LIKE $1`, [`test-pg-${timestamp}-%`])
     } finally {
       client.release()
     }
@@ -196,13 +198,15 @@ export default defineEventHandler(async (event) => {
     const mongoStart = performance.now()
     const testDocs = Array.from({ length: batchSize }, (_, i) => ({
       _id: `test-mongo-${timestamp}-${i}` as any,
-      space_id: 'space-db-fundamentals',
+      space_id: 'space-bench-scale',
       title: `Ephemeral Item ${i}`,
       state: 'unstarted',
       tags: ['benchmark'],
       created_at: new Date(),
     }))
     await mongoItems.insertMany(testDocs)
+    // Clean up ephemeral test docs from MongoDB
+    await mongoItems.deleteMany({ _id: { $regex: `^test-mongo-${timestamp}-` } as any })
     const mongoMs = Number((performance.now() - mongoStart).toFixed(2))
 
     benchmarks.push({
