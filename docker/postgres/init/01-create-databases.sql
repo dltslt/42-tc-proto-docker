@@ -4,3 +4,4 @@
 -- Base database for template container
 CREATE DATABASE proto_template;
 
+CREATE DATABASE proto_run_100;
