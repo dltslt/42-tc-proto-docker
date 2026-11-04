@@ -1,0 +1,3 @@
+/* Tailwind CSS 4 is configured in CSS (no tailwind.config.js): pull in the framework, then Nuxt UI's theme. */
+@import "tailwindcss";
+@import "@nuxt/ui";
