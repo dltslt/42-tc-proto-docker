@@ -38,6 +38,13 @@ Nuxt 4, Nuxt UI 4.12 with Tailwind CSS 4, `zod` 4, Vitest 5, Drizzle ORM 0.45.4 
 ## Changes from the brief
 - `getActor()` moves from `core` to `workspace`, agreed with the user on 2026-11-04 before task 3. The brief's layer table was corrected to match; the reason is in `design.md`.
 
+## Task 3 decisions
+Defaults chosen on 2026-11-04, open to change when the user reviews task 3.
+- **No persona cookie:** the API returns 401, as the brief says. The browser picks a default persona (Ada) and sets the cookie itself, so a first visit shows a board, not an error.
+- **Another space's data:** 403, as the brief says. This tells a caller the space exists, where a 404 would not. Note the trade-off in `design.md`.
+- **The persona cookie is not security:** it is only an actor id that anyone can edit. Put a comment on `getActor()` and a line in `design.md` saying so.
+- **Task 3 adds only `GET /actors` and `GET /spaces`:** the space switcher shows spaces with an empty board until task 4 adds the item routes.
+
 ## Task 5 must do
 Found in review on 2026-11-04. The brief's own tests would still pass if these were missed, so they are required.
 - **Use a separate test database.** Simultaneous-write tests must really commit, and events cannot be deleted, so running them on `proto_run_101` leaves permanent junk. The tests create and migrate their own database.
