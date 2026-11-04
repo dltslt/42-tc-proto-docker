@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // File-based routing: app/pages/index.vue is the route "/".
 const { actor, space, roster } = useIdentity()
-const { items, childMap, projects, scopeId, scopeProject, byColumn, titleOf, create, update } = useItems()
+const { items, childMap, projects, scopeId, scopeProject, byColumn, titleOf, create, update, remove } = useItems()
 
 const view = ref<'board' | 'tree'>('board')
 const viewTabs = [
@@ -36,6 +36,13 @@ const members = computed(() => roster.value.actors.filter(a => space.value?.memb
 const toggle = (item: Item, done: boolean) => update(item.id, { state: done ? 'done' : 'unstarted' })
 const move = (id: string, board_column: ColumnKey, before_id?: string) => update(id, { board_column, before_id })
 const save = (id: string, patch: Record<string, unknown>) => update(id, patch)
+
+// Editor extras: items that may become the parent (not itself, not below itself) and the subtree size.
+const selectedDescendants = computed(() => selected.value ? descendantsOf(childMap.value, selected.value.id) : [])
+const parentOptions = computed(() => {
+  const blocked = new Set([selected.value?.id, ...selectedDescendants.value.map(i => i.id)])
+  return items.value.filter(i => !blocked.has(i.id))
+})
 </script>
 
 <template>
@@ -78,8 +85,11 @@ const save = (id: string, patch: Record<string, unknown>) => update(id, patch)
       :item="selected"
       :children="selected ? childMap[selected.id] ?? [] : []"
       :members="members"
+      :parent-options="parentOptions"
+      :descendant-count="selectedDescendants.length"
       @close="selectedId = null"
       @save="save"
+      @remove="remove"
       @add-child="(parentId, title) => create(title, { parent_id: parentId })"
     />
   </main>

@@ -77,5 +77,11 @@ export function useItems() {
   const update = (id: string, patch: Record<string, unknown>) =>
     call(() => $fetch(`/api/items/${id}`, { method: 'PATCH', headers: headers(), body: patch }))
 
-  return { items, childMap, projects, scopeId, scopeProject, byColumn, titleOf, create, update }
+  // Deleting cascades to the subtree on the server; tell the user how much went away.
+  const remove = async (id: string) => {
+    const res = await call(() => $fetch<{ deleted: number }>(`/api/items/${id}`, { method: 'DELETE', headers: headers() }))
+    if (res) toast.add({ title: res.deleted === 1 ? 'Item deleted' : `${res.deleted} items deleted`, color: 'neutral' })
+  }
+
+  return { items, childMap, projects, scopeId, scopeProject, byColumn, titleOf, create, update, remove }
 }

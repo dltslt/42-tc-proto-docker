@@ -18,7 +18,8 @@
 - `app/pages/index.vue`: quick-add input, Board/Tree switch, editor dialog; wires events to `useItems`.
 - `BoardView.vue` + `ItemCard.vue`: three columns, native drag-and-drop, per-column quick add.
 - `TreeNode.vue`: recursive node, done checkbox, inline child creation.
-- `ItemEditor.vue`: dialog with a local form copy; sends only changed fields on Save.
+- `ItemEditor.vue`: dialog with a local form copy; sends only changed fields on Save. Includes a Parent select
+  (the page pre-filters out the item and its descendants) and a two-step Delete that names how many nested items go too.
 - `QuickAdd.vue`: the one-line creation input used everywhere.
 
 ## Hydration & Re-render Triggers

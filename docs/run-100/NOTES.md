@@ -13,25 +13,29 @@ replacing a module rather than reshaping the app.
 
 ## 3. Open questions touched
 - Column vs. state: columns stored on the item and mapped to states in one table works; the server keeps both consistent.
-- Board scope: showing all items of a space mixes scales; a per-project filter is the natural next step.
+- Board scope: showing all items of a space mixes scales; a per-project filter (URL query) fixes it cheaply.
 - Ordering: float `position` works for drops but will need rebalancing or fractional indexing.
 
 ## 4. Added
 - Tables `spaces`, `actors`, `memberships`, `items` (`type`, `description`, `board_column`, `position`, `lead_id`).
 - Fixtures: Acme Team (4 actors, "Website relaunch" tree) and Ada's Space ("Dinner party").
-- Routes: `GET /api/actors`, `GET|POST /api/items`, `PATCH /api/items/:id`.
+- Routes: `GET /api/actors`, `GET|POST /api/items`, `PATCH|DELETE /api/items/:id`.
+- Project scope filter (`?project=`), reparenting, cascading delete, Vitest suite (`pnpm test`).
 
 ## 5. Stack assumptions
 Nuxt 4, Nuxt UI 4 + Tailwind CSS 4, PostgreSQL 16 via `pg`, `zod` 4, `@iconify-json/lucide`.
 
 ## 6. Cut
-Tags, blockers, artifacts, events log, scoring, scheduling, real auth, real-time sync, reparenting, delete,
-per-project board filter, automated tests.
+Tags, blockers, artifacts, events log, scoring, scheduling, real auth, real-time sync, undo for delete,
+browser/end-to-end tests.
 
 ## 7. Numbers
 Seed: 16 items. SSR page responds with the full board in one request. No load measurements taken.
 
 ## Verification status
+- Automated: `docker compose exec run-100 pnpm test` runs 48 tests (API integration + tree unit tests).
+- Delete, reparent and the project scope selector were added after the first review; the scope selector was
+  confirmed in a server-rendered screenshot, the delete/parent controls in the editor were not clicked through.
 - Verified: `make seed` twice (counts unchanged); every API case in the brief via curl (create, nested create,
   patch, state/column sync, reorder, 400/401/403/404 cases, cross-space isolation); server-rendered board
   confirmed in a headless Firefox screenshot.
