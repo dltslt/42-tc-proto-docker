@@ -18,3 +18,11 @@ export const CHILD_TYPE: Record<ItemType, ItemType> = {
   story: 'task',
   task: 'task', // task under task = subtask
 }
+
+// Badge colors (Nuxt UI color aliases) so a type reads the same on the board and in the tree.
+export const TYPE_COLOR = {
+  project: 'primary',
+  epic: 'secondary',
+  story: 'info',
+  task: 'neutral',
+} as const satisfies Record<ItemType, string>
