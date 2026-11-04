@@ -65,6 +65,18 @@ services:
     volumes:
       - ./prototypes/template:/app
 
+  run-500:
+    extends:
+      service: base-proto
+    profiles: ["run-500", "all"]
+    ports:
+      - "3500:3500"
+    environment:
+      - PORT=3500
+      - DB_NAME=proto_run_500
+    volumes:
+      - ./prototypes/run-500:/app
+
 volumes:
   postgres_data:
   mongo_data:
