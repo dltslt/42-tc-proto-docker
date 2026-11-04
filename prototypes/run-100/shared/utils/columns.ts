@@ -6,8 +6,10 @@ export const COLUMNS: { key: ColumnKey; label: string; state: ItemState }[] = [
   { key: 'done', label: 'Done', state: 'done' },
 ]
 
-export const ITEM_TYPES: ItemType[] = ['project', 'epic', 'story', 'task']
-export const ITEM_STATES: ItemState[] = ['unstarted', 'started', 'done', 'discarded']
+// `as const` keeps these as literal tuples so zod (server) and USelect (browser) can both consume them.
+export const ITEM_TYPES = ['project', 'epic', 'story', 'task'] as const
+export const ITEM_STATES = ['unstarted', 'started', 'done', 'discarded'] as const
+export const COLUMN_KEYS = ['backlog', 'in_progress', 'done'] as const
 
 // Hierarchy hint for progressive creation: what a child of this type usually is.
 export const CHILD_TYPE: Record<ItemType, ItemType> = {
