@@ -13,6 +13,7 @@ It is not intended as a generic tool to directly assist every 42 student, but ra
 ├── AGENTS.md            the rule every prototype agent follows, including how to commit
 ├── README.md            this file: repository overview, quick start, and curriculum roadmap
 ├── PROMPT.md            the harness prompt that starts a run; names a run and a brief
+├── specs/               product context and domain data invariants for prototypes
 ├── briefs/              one brief per prototype defining the scenario to evaluate
 ├── docs/                technical documentation and prototype run documentation
 │   ├── README.md        master documentation index and curriculum guide

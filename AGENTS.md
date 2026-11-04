@@ -11,6 +11,7 @@ A prototype is also a lesson. The team and readers learned software engineering 
 ├── AGENTS.md            the rule every prototype agent follows, including how to commit
 ├── README.md            repository overview, quick start, and curriculum roadmap
 ├── PROMPT.md            the harness prompt that starts a run; names a run and a brief
+├── specs/               product context and domain data invariants for prototypes
 ├── briefs/              one brief per prototype defining the scenario to evaluate
 ├── docs/                technical documentation and prototype run documentation
 │   ├── README.md        master documentation index and curriculum guide
@@ -52,45 +53,16 @@ Unlike a compiled C binary where all code executes in a single local process, a 
 
 ## Core Domain Concepts
 
-Lerch concepts remain consistent across prototypes:
+Read product vision, baseline mechanics, and domain invariants defined in [`specs/`](specs/):
 
-- **Items (`tasks`)**: Work units with a hierarchy level: `project`, `epic`, `story`, `task`, or `subtask`. `contributors` is a `;`-separated list of actors. `lead` may be empty.
-- **Relations**: Parent-child hierarchy links (`parent_id` mirrors the relation record). An item with no parent has an empty `parent_id`.
-- **Spaces**: Organizational or personal boundaries containing items and members.
-- **Members & Actors**: People or automated agents in a space with assigned roles.
-- **Blockers**: Directed dependencies where one item blocks another (`blocker_item_id` blocks `blocked_item_id`).
-  - Severity scale: `cannot do anything`, `will be stuck`, `slowed down`, `nice to have`.
-- **Item Scores**: Assessment values: `doesn't work`, `bare minimum`, `satisfactory`, `excellent`.
-  > [!IMPORTANT]
-  > Blocker severity and item scores are two completely different scales. Never merge them.
-- **The Dinner Fixture:** In 10,000-item datasets: project "Dinner" with task "cut the bread", project "Buy cutlery" with task "bread knife", and a blocker from "bread knife" to "cut the bread" with severity `cannot do anything`. Both tasks then have effort and a scheduled time.
-- **Timestamps:** Timestamps are offsets from `2026-10-30T00:00:00Z`. A read that wants "today" shifts every timestamp by the gap between that day and the day it reads.
+- **[`specs/product-short-v2.md`](specs/product-short-v2.md)**: Product vision, the 4 baseline mechanics (`Spaces & actors`, `Items & recursive hierarchy`, `Progressive creation`, `State & kanban`), on-demand exploration directions, and working rules.
+- **[`specs/data-foundation.md`](specs/data-foundation.md)**: The 8 core domain invariant groups (`Space`, `Actor`, `Item`, `Hierarchy`, `Blocker`, `Tag`, `Artifact`, `Event`), their minimum invariant fields, run-specific refinements, and open architectural dimensions.
 
 ---
 
 ## The Database
 
-The prototypes evaluate both relational and document-oriented representations of the core Lerch domain.
-
-### Schema Entities
-
-| Table / Collection | What a record is |
-|---|---|
-| `actors` | a person or an agent. `spaces` lists the spaces, separated by `;` |
-| `spaces` | an organisation space or a personal space |
-| `members` | one actor in one space, with a role |
-| `columns` | a kanban column in one space. `position` is its order. `state` is the category of that column |
-| `tasks` | one item. `level` is project, epic, story, task, or subtask. `contributors` is a `;` list. `lead` may be empty |
-| `relations` | one parent and one child. This is the hierarchy record |
-| `tags` | one of 40 tags |
-| `item_tags` | one tag on one item |
-| `blockers` | one blocker link. `blocker_item_id` blocks `blocked_item_id` |
-| `artifacts` | a title and a URL. Never a copy of the document |
-| `item_artifacts` | one artifact on one item |
-| `events` | one event on one item. Each item has 2 to 4 |
-
-> [!NOTE]
-> *[Stub / Incomplete: The schema entities listed here represent a preliminary data model created for early exploratory prototypes. Detailed domain specifications and refined entity models will be documented here as they are released.]*
+The prototypes evaluate relational, document-oriented, and hybrid representations of the core Lerch domain. See [`specs/data-foundation.md`](specs/data-foundation.md) for the entity invariants and open schema dimensions.
 
 ### Shared Container Engines & Connection URLs
 
@@ -135,13 +107,14 @@ The team has chosen Nuxt 4 within Docker. The current architectural baseline and
 Read these, in this order:
 
 1. This file (`AGENTS.md`).
-2. The product context and specification.
-3. The brief the prompt names under `briefs/`. Where it and this file disagree, the brief wins.
+2. The product context (`specs/product-short-v2.md`) and data foundation (`specs/data-foundation.md`).
+ 
+> When your *brief* and these files disagree, the brief wins.
 
 **Prototype Isolation & Working Directory Boundaries:**
 - **Code Directory**: Write prototype code **strictly** inside `prototypes/<run-dir>/` (e.g. `prototypes/run-100/`).
 - **Documentation Directory**: Write prototype documentation **strictly** inside `docs/<run-dir>/` (e.g. `docs/run-100/`).
-- Do not edit `prototypes/template/`, `docs/template/`, `briefs/`, `AGENTS.md`, `README.md`, `PROMPT.md`, or other prototype directories.
+- Do not edit `prototypes/template/`, `docs/template/`, `specs/`, `briefs/`, `AGENTS.md`, `README.md`, `PROMPT.md`, or other prototype directories.
 - Do not inspect, search, or diff any other prototype directory. Search only inside your designated run and docs directories. An empty "Findings from earlier runs" section in a brief stays empty unless explicitly filled by hand.
 
 ### 2. Kinds of Brief
