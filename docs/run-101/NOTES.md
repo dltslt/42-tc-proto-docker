@@ -38,6 +38,16 @@ Nuxt 4, Nuxt UI 4.12 with Tailwind CSS 4, `zod` 4, Vitest 5, Drizzle ORM 0.45.4 
 ## Changes from the brief
 - `getActor()` moves from `core` to `workspace`, agreed with the user on 2026-11-04 before task 3. The brief's layer table was corrected to match; the reason is in `design.md`.
 
+## Task 5 must do
+Found in review on 2026-11-04. The brief's own tests would still pass if these were missed, so they are required.
+- **Use a separate test database.** Simultaneous-write tests must really commit, and events cannot be deleted, so running them on `proto_run_101` leaves permanent junk. The tests create and migrate their own database.
+- **Test with two real connections.** Simultaneous edits and moves need two connections at once. On a single connection the tests pass without testing anything simultaneous.
+- **Handle tied order keys, with a test.** Simultaneous moves can give two siblings the same `position`, and `generateKeyBetween` throws when both neighbours have the same key. The test makes two siblings share a key, drops a card between them and expects no 500.
+
+## Known limits
+- **Spaces and actors cannot be deleted.** Events are append-only and have foreign keys to both, so the database refuses. Names and old text also stay in the history, which matters for account deletion and privacy rules. Decide on hiding, anonymising or changing the rule before building any delete for them.
+- **`make seed` is the only way to apply migrations.** After pulling a new migration, run it or the app fails with a database error. The user chose not to add a separate `db:migrate` for this run; a real deployment would need one, so it can update the database without adding demo data.
+
 ## Working notes
 - Adding a package: `docker compose exec run-101 pnpm add --store-dir /root/.local/share/pnpm/store <package>`. Without `--store-dir`, pnpm fails with "Unexpected store location".
 - Files written by a command inside the container belong to root on the host. After `pnpm add` or `db:generate`, run `chown` inside the container with the host user's id, or later edits on the host fail. `package.json`, `pnpm-lock.yaml` and `server/db` need it.
