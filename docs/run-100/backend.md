@@ -22,3 +22,10 @@ Nitro routes in `server/api/` (file name = route). Item routes require header `x
 - `server/utils/schemas.ts` (zod) validates every query/body; `.strict()` on PATCH rejects unknown keys.
 - Failures become `createError` with 400 and a readable `message` (e.g. `title: must not be empty`),
   never a 500. Invalid JSON gives 400 as well.
+
+## Tests
+`docker compose exec run-100 pnpm test` (after `make seed RUN=100`). Vitest integration tests in `tests/` call the
+running dev server over HTTP, like the browser does, and remove the items they create directly in Postgres:
+- `seed.test.ts`: fixtures, hierarchy chain, ordering, column/state consistency.
+- `access.test.ts`: 401/403/404 and space isolation.
+- `items.test.ts`: creation defaults, column/state sync, drop ordering, lead rules, validation errors.
