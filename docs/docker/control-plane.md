@@ -128,15 +128,15 @@ make down
 ---
 
 ### `make clean`
-Stops and deletes the container and anonymous volumes (`/app/node_modules`, `/app/.nuxt`) for a single prototype run without affecting shared databases or other runs.
+Stops and deletes the container and anonymous cache volume (`/app/.nuxt`) for a single prototype run without affecting shared databases, the shared `pnpm_store` volume, or other runs.
 ```bash
 make clean RUN=100
 # Or clean the template container:
 make clean RUN=template
 ```
 - Targets only the specified service container (`$$run`).
-- Uses `docker compose --profile "$$run" rm -s -f -v "$$run"` to stop the container, delete it, and purge attached anonymous volumes.
-- Preserves the shared `pnpm_store` named volume, PostgreSQL, MongoDB, and any other running prototype containers.
+- Uses `docker compose --profile "$$run" rm -s -f -v "$$run"` to stop the container, delete it, and purge attached anonymous volumes (`/app/.nuxt`).
+- Preserves the shared `pnpm_store` named volume (both the global CAS `store` and per-run `node_modules` subpaths), PostgreSQL, MongoDB, and any other running prototype containers.
 
 ---
 

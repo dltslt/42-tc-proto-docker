@@ -119,6 +119,11 @@ service_block = '''  $RUN:
       - DB_NAME=$DB_NAME
     volumes:
       - ./prototypes/$RUN:/app
+      - type: volume
+        source: pnpm_store
+        target: /app/node_modules
+        volume:
+          subpath: $RUN/node_modules
 
 '''
 

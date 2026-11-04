@@ -43,9 +43,12 @@ services:
     env_file:
       - .env
     volumes:
-      - /app/node_modules
       - /app/.nuxt
-      - pnpm_store:/root/.local/share/pnpm/store
+      - type: volume
+        source: pnpm_store
+        target: /root/.local/share/pnpm/store
+        volume:
+          subpath: store
     depends_on:
       - postgres
       - mongo
@@ -64,6 +67,11 @@ services:
       - DB_NAME=proto_template
     volumes:
       - ./prototypes/template:/app
+      - type: volume
+        source: pnpm_store
+        target: /app/node_modules
+        volume:
+          subpath: template/node_modules
 
 volumes:
   postgres_data:
