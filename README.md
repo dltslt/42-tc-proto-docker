@@ -59,38 +59,36 @@ Deep-dive documentation is organized in [`docs/`](docs/README.md):
 
 All platform operations are orchestrated through standard `make` targets.
 
+### 1. Creating a New Prototype
+
+#### Agent-Guided
+
+1. Simply reference `@PROMPT.md` in your agent chat:
+   ```text
+   @PROMPT.md
+   ```
+2. Let the agent guide you: it will ask for the 3-digit run number and your idea, create its workspace, and build the prototype.
+3. Open in your browser: http://localhost:3XXX (replacing XXX with the 3 digits)
+
+#### Manual
+
+1. Scaffold, start, and seed the prototype container (e.g. `run-100` on port `3100`):
+   ```bash
+   make new RUN=100 DB=hybrid
+   make up RUN=100
+   make seed RUN=100
+   ```
+2. Write your brief in `briefs/run-100.md`.
+3. Prompt your agent in chat:
+   ```text
+   @PROMPT.md 100
+   ```
+4. Open in your browser: http://localhost:3100
+
+### 2. Initializing Existing Prototype Runs (`make init`)
+
 > [!IMPORTANT]
-> **When to use `make init` vs. `make new`:**
 > `make init` is only needed and only takes effect when **existing prototype runs are present** in the repository (e.g. after cloning a repository or branch that already contains `prototypes/run-100/`). It pulls base images, boots the database engines, and batch-seeds every existing prototype before shutting down.
->
-> If you are starting fresh with no runs present, there is nothing for `make init` to seed — skip `make init` and jump straight to `make new` below to scaffold your first run.
-
-### Scaffolding a New Prototype Run (Fresh Clone / New Work)
-
-```bash
-# 1. Scaffold a new isolated prototype run (e.g. run-100 on port 3100)
-make new RUN=100 DB=hybrid
-
-# 2. Start the prototype container in detached mode
-make up RUN=100
-
-# 3. Seed the prototype's logical database (executes pnpm run db:seed)
-make seed RUN=100
-
-# 4. Open in your browser:
-#    http://localhost:3100
-
-# 5. Tail container logs or open an interactive shell
-make logs RUN=100
-make sh RUN=100
-
-# 6. Stop running containers cleanly
-make down
-```
-
-### Initializing Existing Prototype Runs (`make init`)
-
-If you just cloned a branch or repository that already contains prototype runs:
 
 ```bash
 # Pulls base images, boots shared DB engines, seeds all existing runs, and shuts down cleanly
@@ -98,6 +96,9 @@ make init
 
 # Then start whichever prototype you want to inspect:
 make up RUN=100
+
+# Open in your browser:
+# http://localhost:3100
 ```
 
 ### Full Target Reference

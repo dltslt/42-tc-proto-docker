@@ -108,28 +108,43 @@ Read these, in this order:
 
 1. This file (`AGENTS.md`).
 2. The product context (`specs/product-short-v2.md`) and data foundation (`specs/data-foundation.md`).
- 
-> When your *brief* and these files disagree, the brief wins.
 
 **Prototype Isolation & Working Directory Boundaries:**
 - **Code Directory**: Write prototype code **strictly** inside `prototypes/<run-dir>/` (e.g. `prototypes/run-100/`).
 - **Documentation Directory**: Write prototype documentation **strictly** inside `docs/<run-dir>/` (e.g. `docs/run-100/`).
-- Do not edit `prototypes/template/`, `docs/template/`, `specs/`, `briefs/`, `AGENTS.md`, `README.md`, `PROMPT.md`, or other prototype directories.
+- **Brief File**: Read or create only `briefs/<run-dir>.md` (e.g. `briefs/run-100.md`).
+- Do not edit `prototypes/template/`, `docs/template/`, `specs/`, other files in `briefs/`, `AGENTS.md`, `README.md`, `PROMPT.md`, or other prototype directories.
 - Do not inspect, search, or diff any other prototype directory. Search only inside your designated run and docs directories. An empty "Findings from earlier runs" section in a brief stays empty unless explicitly filled by hand.
 
-### 2. Kinds of Brief
+### 2. Briefs: Read & Build vs. Prompt & Save
 
-> [!NOTE]
-> *[Stub / Incomplete: Brief categories (e.g. fast, proper) and evaluation criteria will be detailed here once the upcoming brief overhaul is finalized.]*
+Every prototype run corresponds to a 3-digit run number (`100..999`, directory `prototypes/run-XXX`) and a brief in `briefs/run-XXX.md`. If no 3-digit `RUN` number was provided, ask the user for it first!
 
-### 3. Step-by-Step Workflow
+There are two ways a run starts:
 
-1. **Deconstruct:** Split the slice into small, digestible chunks that a reviewer can read as a single concept.
-2. **Authorship:** Create the `<harness>-<model>` file at the prototype code root (`prototypes/<run-dir>/<harness>-<model>`).
-3. **Incremental Implementation:** Build chunk by chunk. Add 1-line orientation comments for framework mechanisms. Commit each chunk using the scoped git workflow.
-4. **Documentation:** Maintain `docs/<run-dir>/design.md`, `docs/<run-dir>/frontend.md`, and `docs/<run-dir>/backend.md`. Update them as design evolves.
-5. **Browser Verification:** Verify every criteria under "Done when" in the brief directly in the browser.
-6. **Wrap-up:** Write `docs/<run-dir>/NOTES.md`, commit it, and repeat its summary in the final response.
+1. **Read & Build (Brief already exists):** If `briefs/run-XXX.md` already exists, read that brief and build the prototype it specifies.
+2. **Prompt & Save (Idea described in prompt):** If `briefs/run-XXX.md` is missing, the user's prompt becomes the brief (if no idea was given yet, ask the user what to build). **Before writing any prototype code**, write `briefs/run-XXX.md` capturing the scenario/idea, what to build, and the "Done when" criteria, and commit it with the run.
+
+### 3. Control Plane (`make`) & Step-by-Step Workflow
+
+If the prototype directory (`prototypes/run-XXX/`) does not exist or its container is not running, set up the work environment using the `Makefile` targets:
+
+```bash
+make new RUN=100 [DB=hybrid|postgres|mongo|none]  # Scaffolds prototypes/run-100 and docs/run-100
+make up RUN=100                                   # Starts container (http://localhost:3100) and DBs
+make seed RUN=100                                 # Executes pnpm run db:seed inside container
+make ps RUN=100                                   # Checks container status
+make logs RUN=100                                 # Tails container logs
+```
+
+**Workflow Steps:**
+1. **Environment & Brief:** Ensure you have your work environment in `prototypes/run-XXX/`. When your brief and product context or data foundation disagree, the brief wins.
+2. **Deconstruct:** Split the slice into small, digestible chunks that a reviewer can read as a single concept.
+3. **Authorship:** Create the `<harness>-<model>` file at the prototype code root (`prototypes/<run-dir>/<harness>-<model>`).
+4. **Incremental Implementation:** Build chunk by chunk. Add 1-line orientation comments for framework mechanisms. Run `make seed RUN=XXX` when updating `server/seed.ts`. Commit each chunk using the scoped git workflow.
+5. **Documentation:** Maintain `docs/<run-dir>/design.md`, `docs/<run-dir>/frontend.md`, and `docs/<run-dir>/backend.md`. Update them as design evolves.
+6. **Browser Verification:** Verify every criteria under "Done when" in the brief directly in the browser (`http://localhost:3XXX`).
+7. **Wrap-up:** Write `docs/<run-dir>/NOTES.md`, commit it, and repeat its summary in the final response.
 
 ### 4. Authorship (`<harness>-<model>`)
 
@@ -174,7 +189,7 @@ Every prototype maintains its technical documentation inside the project root's 
 
 Follow Conventional Commits using the `.agents/skills/git-commit` guidelines. Commit messages should have a clear scope identifying the modified component or prototype:
 
-Commit only your own prototype code and documentation directories. The commit message scope **must** identify the run directory, and git commands **must** use the pathspecs `-- prototypes/<run-directory> docs/<run-directory>`:
+Commit only your own prototype code, documentation, and (when created via Prompt & Save) `briefs/<run-directory>.md`. The commit message scope **must** identify the run directory, and git commands **must** use explicit pathspecs (`-- prototypes/<run-directory> docs/<run-directory>` and `briefs/<run-directory>.md` if created):
 
 ```bash
 git add prototypes/<run-directory> docs/<run-directory>

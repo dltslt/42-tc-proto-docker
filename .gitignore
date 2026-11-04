@@ -23,5 +23,5 @@ logs
 .env.*
 !.env.example
 
-# temporarily ignored
-briefs/
+# archive
+briefs-old/
