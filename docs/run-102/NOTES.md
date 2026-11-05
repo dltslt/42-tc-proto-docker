@@ -10,8 +10,9 @@
 ## Progress
 - [x] Task 1: Skeleton
 - [x] Task 2: Database
-- [ ] Task 3: Identity and read path (next)
-- [ ] Tasks 4 to 7: see the brief
+- [x] Task 3: Identity and read path
+- [ ] Task 4: Write path (next)
+- [ ] Tasks 5 to 7: see the brief
 
 Tasks are built one at a time, and each is reviewed before the next one starts.
 
@@ -53,6 +54,18 @@ Nuxt 4.6.3, Zod 4.6.7, Vitest 5.1.0, Drizzle ORM 0.45.4 and drizzle-kit 0.31.11 
 - **Idle connections:** the pool needs an `error` listener, or a dropped idle connection exits the process.
 - **Schema and seed files use relative imports.** drizzle-kit and tsx run outside Nuxt and do not know the `#layers` alias.
 
+## Task 3 decisions
+- **The caller is identified before the input is validated.** The brief's diagram had validation first. An anonymous caller now gets 401 whatever they send, and learns nothing about the validation rules. The brief's diagram is updated.
+- **`GET /actors` is open.** A client has to see who it can act as before it can send `X-Actor-Id`. It lists every actor, which is fine while the header is not security; real auth replaces it.
+- **Secure by default:** a contract needs an actor unless it says `auth: 'none'`. The OpenAPI document declares the header as a security scheme and lists 401 on every route that needs it.
+- **404 for an unknown space or item, 403 for one that exists but belongs to another space.** This tells a caller that an id exists. The brief asks for 403; the trade-off is noted.
+- **`space_id` is required on `GET /items`.** One space per request keeps isolation simple. Listing across all of an actor's spaces can be added later without breaking anything.
+- **Cursor timestamps travel as Postgres text.** A JavaScript Date keeps milliseconds and Postgres keeps microseconds, so two rows could swap places across a page boundary. A test inserts rows microseconds apart; making the cursor round to milliseconds (checked by hand) makes it fail.
+- **Cursors are tied to their sort.** A cursor from `position` is refused under `-created_at` with a 400.
+- **Read tests use the demo database, read-only.** `tests/global-setup.ts` migrates and seeds it first (a no-op if done). Task 4's write tests will need their own server and database: a test that really commits cannot share `proto_run_102`.
+- **Added to the index route:** each layer's list of `actions`. Additive, so the contract is unchanged.
+- **Unused `can()` argument names** (`_actor`, `_resource`) are deliberate: the signature is what routes call today, and rules fill in the body later.
+
 ## Working notes
 - Adding a package: `docker compose exec run-102 pnpm add <package>`. If pnpm refuses with "Unexpected store location", add `--store-dir /root/.local/share/pnpm/store/v11` (the location depends on how `node_modules` was installed).
 - Files written by a command in the container belong to root on the host. After `pnpm add`, run `chown` inside the container with the host user's id, or later edits on the host fail.
@@ -60,6 +73,8 @@ Nuxt 4.6.3, Zod 4.6.7, Vitest 5.1.0, Drizzle ORM 0.45.4 and drizzle-kit 0.31.11 
 - The `#layers/<name>` alias is provided by Nuxt inside the app. Vitest has no Nuxt, so `vitest.config.ts` defines it.
 
 ## Verification status
+Task 3: 100 Vitest tests pass (service tests on throwaway databases, HTTP tests on the seeded server). Checked by hand with curl: no header gives 401, Ada gets 403 for Studio's space and items, Cleo gets 200 for the same item, and paging 11 items that share one `created_at` returns each once. Not yet checked in a browser beyond the reference page.
+
 Task 2: 49 Vitest tests pass, twice in a row, with no leftover test databases. `make seed RUN=102` inserted 4 actors, 5 spaces, 7 memberships, 20 columns, 19 items and 24 events, and a second run inserted nothing. On a fresh empty database, two seeds started at the same moment applied the 2 migrations once and inserted each row once. A wrong password and an unreachable host each fail with a one-line error (`28P01`, `ENOTFOUND`). Not yet checked: the seeded data through the API (task 3) and in a browser.
 
 Task 1: 20 Vitest tests pass (13 unit, 7 HTTP). In headless Chromium through Playwright the reference page lists all four layers and three routes. The first run showed a hydration mismatch (table without `<tbody>`); after the fix the console has no warnings or errors. Playwright ran from a scratch folder outside the project, so it is not a project dependency. Removing a layer was not tested yet; that is task 7.

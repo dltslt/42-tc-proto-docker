@@ -25,7 +25,7 @@ flowchart TD
     Page -->|in-process fetch| Route
     MW -->|match| Reg
     MW -->|registered| Route
-    Route -->|services, from task 3| PG
+    Route -->|services| PG
 ```
 
 ## Architectural Decisions
@@ -34,7 +34,10 @@ flowchart TD
 - **The middleware is the front door.** An `/api/v1` request that matches no registered contract gets the shared 404 shape. This also stops a wrong method on a real path from falling through to the page renderer.
 - **OpenAPI without an extra package.** Zod 4 produces JSON Schema itself (`target: 'openapi-3.0'`), and `openapi.ts` assembles the document from the contracts.
 - **Execution boundaries.** All API code is server-only (Nitro). `app/app.vue` is universal: it runs on the server for SSR, then in the browser.
+- **Identity is plugged in, not imported.** `core` runs `getActor()` for every route that needs an actor, but the function lives in `workspace`, which `core` must not import. The workspace layer registers it with a hook at server start.
+- **Isolation and policy are separate.** Space membership is enforced by the services; `can()` is a policy stub that allows everything.
+- **Keyset pagination.** Lists page by "rows after this (key, id)", not OFFSET, so pages stay stable while data changes. Timestamps travel in cursors as text, because a JavaScript Date would drop microseconds.
 - **Persistence.** PostgreSQL only. Each layer owns its tables, one config collects them into one ordered migration history, and the database itself enforces space boundaries, column/state consistency and the append-only log.
 
 ## Layers (one-way dependencies)
-`core ← workspace ← items ← events`. `core` holds the plumbing; `workspace`, `items` and `events` own their tables and have no routes yet.
+`core ← workspace ← items ← events`. `core` holds the plumbing (routes, errors, pagination, `can()`); `workspace` owns identity, spaces and columns; `items` owns items; `events` owns its table and has no routes yet.

@@ -1,6 +1,7 @@
-// Nitro plugin: registers the `items` layer at server start. It has no routes yet.
+// Nitro plugin: registers the `items` layer at server start.
 import { registerModule } from '#layers/core/server/lib/registry'
+import { itemActions, itemContracts } from '../contracts'
 
 export default defineNitroPlugin(() => {
-  registerModule({ name: 'items', dependsOn: ['workspace'], routes: [] })
+  registerModule({ name: 'items', dependsOn: ['workspace'], routes: itemContracts, actions: itemActions })
 })

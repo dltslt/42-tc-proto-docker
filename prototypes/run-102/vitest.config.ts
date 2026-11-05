@@ -8,6 +8,7 @@ export default defineConfig({
     alias: { '#layers': fileURLToPath(new URL('./layers', import.meta.url)) },
   },
   test: {
+    globalSetup: ['./tests/global-setup.ts'],
     // Tests live next to the layer they cover; cross-layer tests live in tests/.
     include: ['layers/*/tests/**/*.test.ts', 'tests/**/*.test.ts'],
   },

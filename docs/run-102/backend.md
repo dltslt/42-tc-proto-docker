@@ -1,20 +1,38 @@
 # Backend Architecture: run-102
 
 ## Server Endpoints
-All routes live under `/api/v1`. Route files are in `layers/<name>/server/api/v1/`; the file path decides the URL.
+All routes live under `/api/v1`. Route files are in `layers/<name>/server/api/v1/`; the file path decides the URL. Every route except the open ones needs an `X-Actor-Id` header.
 
-| Route | Layer | Purpose |
-|---|---|---|
-| `GET /api/v1` | core | Contract version and the layers that are loaded |
-| `GET /api/v1/health` | core | `{ "status": "ok" }` |
-| `GET /api/v1/openapi.json` | core | The API described in OpenAPI 3.0, built from the contracts |
+| Route | Layer | Actor | Purpose |
+|---|---|---|---|
+| `GET /api/v1` | core | open | Contract version, the loaded layers, and the actions each one checks |
+| `GET /api/v1/health` | core | open | `{ "status": "ok" }` |
+| `GET /api/v1/openapi.json` | core | open | The API described in OpenAPI 3.0, built from the contracts |
+| `GET /api/v1/actors` | workspace | open | Actors, so a client can choose who to act as |
+| `GET /api/v1/spaces` | workspace | needed | Only the spaces the caller is a member of |
+| `GET /api/v1/spaces/:id/columns` | workspace | needed | Columns of a space in board order (404 unknown space, 403 not a member) |
+| `GET /api/v1/items?space_id=` | items | needed | Items of a space, with filters, search, sorting and cursor pagination |
+| `GET /api/v1/items/:id` | items | needed | One item (404 unknown, 403 if it lives in a space the caller is not in) |
 
 Any other `/api/v1` request gets the error shape: 405 with an `Allow` header when the path exists for other methods, 404 when it does not.
+
+### Lists
+Every list answers `{ "data": [...], "next_cursor": "..." | null }`. Pass `next_cursor` back as `?cursor=` for the next page; `null` means the end. `?limit=` is 1 to 200 (default 50). The cursor is opaque and tied to the sort it came from.
+
+`GET /items` filters: `state`, `type`, `column_id`, `lead_id`, `parent_id` (an item id, or `null` for root items) and `q` (case-insensitive text in the title or description; `%` and `_` are plain characters). Sort with `?sort=position`, `-position`, `created_at` or `-created_at`; ties are broken by id. Discarded items are returned like any other: hiding them is the client's choice.
+
+### Who is calling
+`getActor()` (workspace layer) reads the `X-Actor-Id` header and looks the actor up. A missing, malformed or unknown id is a 401. The header is not security: anyone can send any id. Real login or API keys replace this one function. The route wrapper in `core` calls it through a hook that the workspace layer sets at server start, so `core` never imports a layer above it.
+
+### Two separate checks
+- **Space isolation** is a data rule that the services always enforce: an actor only touches spaces they are a member of (`requireSpaceAccess`). It does not depend on `can()`.
+- **`can(actor, action, resource)`** is the policy hook. It allows everything today. Each layer lists the action names it checks (`item.list`, `item.read`, `space.list`, `column.list`), and `can()` throws on a name no layer registered, so a typo is never quietly allowed.
 
 ## How a request flows
 1. `layers/core/server/middleware/api-v1.ts` runs first. It looks the method and path up in the registry (`matchRoute`).
 2. A match continues to the route file. No match ends the request with a 405 (path known, other method) or 404.
-3. `defineRoute` validates params, query and body with the contract's Zod schemas, calls the handler, then checks the handler's result against the response schema.
+3. `defineRoute` identifies the caller (`getActor()`), validates params, query and body with the contract's Zod schemas, calls the handler, then checks the handler's result against the response schema.
+4. The handler calls `authorize(actor, action, resource)` and a service. Services take the database handle as their first argument, so tests can pass a throwaway database.
 
 ## Database Integration
 PostgreSQL 16 through Drizzle ORM. Each layer owns the tables it introduces, in `layers/<name>/server/db/schema.ts`. A layer imports tables only from layers below it. One `drizzle.config.ts` collects every schema file and writes one ordered migration history to `drizzle/`.
@@ -59,6 +77,8 @@ Adding a migration after changing a schema file: `docker compose exec run-102 pn
 - `lib/registry.ts`: `registerModule`, `listModules`, `matchRoute`.
 - `lib/openapi.ts`: `buildOpenApi`.
 - `lib/define-route.ts`: the Nitro glue.
+- `lib/actor.ts`, `lib/policy.ts`: the actor hook, `can()` and `authorize()`.
+- `lib/pagination.ts`, `db/keyset.ts`: the list envelope, cursors and the SQL for "rows after this one".
 - `contracts.ts`, `plugins/core.module.ts`, `middleware/api-v1.ts`, `api/v1/*`.
 
 ## Tests
