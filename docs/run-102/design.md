@@ -34,7 +34,7 @@ flowchart TD
 - **The middleware is the front door.** An `/api/v1` request that matches no registered contract gets the shared 404 shape. This also stops a wrong method on a real path from falling through to the page renderer.
 - **OpenAPI without an extra package.** Zod 4 produces JSON Schema itself (`target: 'openapi-3.0'`), and `openapi.ts` assembles the document from the contracts.
 - **Execution boundaries.** All API code is server-only (Nitro). `app/app.vue` is universal: it runs on the server for SSR, then in the browser.
-- **Persistence.** PostgreSQL only; arrives in task 2.
+- **Persistence.** PostgreSQL only. Each layer owns its tables, one config collects them into one ordered migration history, and the database itself enforces space boundaries, column/state consistency and the append-only log.
 
 ## Layers (one-way dependencies)
-`core ← workspace ← items ← events`. Only `core` has code so far; the other three register themselves and have no routes yet.
+`core ← workspace ← items ← events`. `core` holds the plumbing; `workspace`, `items` and `events` own their tables and have no routes yet.
