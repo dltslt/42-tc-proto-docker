@@ -7,6 +7,8 @@ export interface ModuleDefinition {
   // Names of the layers this one builds on. A layer never depends on one above it.
   dependsOn: string[]
   routes: RouteContract[]
+  // Permission names this layer checks with can(), like "item.read". Each layer registers its own.
+  actions?: string[]
 }
 
 export interface ModuleInfo {
@@ -14,6 +16,7 @@ export interface ModuleInfo {
   depends_on: string[]
   missing_dependencies: string[]
   route_count: number
+  actions: string[]
 }
 
 // Module-level state: one registry per server process, filled by the layers' Nitro plugins.
@@ -46,11 +49,16 @@ export function listModules(): ModuleInfo[] {
       depends_on: mod.dependsOn,
       missing_dependencies: mod.dependsOn.filter((dep) => !modules.has(dep)),
       route_count: mod.routes.length,
+      actions: mod.actions ?? [],
     }))
 }
 
 export function allRoutes(): RouteContract[] {
   return [...modules.values()].flatMap((mod) => mod.routes)
+}
+
+export function allActions(): string[] {
+  return [...modules.values()].flatMap((mod) => mod.actions ?? [])
 }
 
 // Does a contract path (`/items/{id}`) match a request path? A trailing slash is ignored.

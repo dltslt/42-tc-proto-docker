@@ -25,7 +25,8 @@ describe('GET /api/v1/openapi.json', () => {
     const { status, body } = await api('/openapi.json')
     expect(status).toBe(200)
     expect(body.openapi).toBe('3.0.3')
-    expect(Object.keys(body.paths).sort()).toEqual(['/', '/health', '/openapi.json'])
+    // Routes of other layers are listed too: the document describes whatever is loaded.
+    expect(Object.keys(body.paths)).toEqual(expect.arrayContaining(['/', '/health', '/openapi.json']))
     expect(body.components.schemas.Error).toBeDefined()
   })
 })

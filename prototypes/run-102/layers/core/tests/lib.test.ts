@@ -4,6 +4,8 @@ import { z } from 'zod'
 import { defineContract, errorStatuses, validateInput } from '../server/lib/contract'
 import { ApiError, ErrorBodySchema, notFound, toErrorResponse } from '../server/lib/errors'
 import { buildOpenApi } from '../server/lib/openapi'
+import { decodeCursor, encodeCursor, toPage } from '../server/lib/pagination'
+import { authorize, can } from '../server/lib/policy'
 import { allowedMethods, allRoutes, listModules, matchRoute, registerModule, resetRegistry } from '../server/lib/registry'
 
 const getThing = defineContract({
@@ -105,10 +107,11 @@ describe('OpenAPI', () => {
       ['id', 'path', true],
       ['limit', 'query', false],
     ])
-    expect(Object.keys(get.responses)).toEqual(['200', '400', '404'])
+    expect(Object.keys(get.responses)).toEqual(['200', '400', '401', '404'])
+    expect(get.security).toEqual([{ ActorHeader: [] }])
     const post = doc.paths['/things'].post
     expect(post.requestBody.content['application/json'].schema.required).toEqual(['title'])
-    expect(Object.keys(post.responses)).toEqual(['201', '400'])
+    expect(Object.keys(post.responses)).toEqual(['201', '400', '401'])
   })
 
   it('shares one Error schema for every error response', () => {
@@ -118,9 +121,16 @@ describe('OpenAPI', () => {
     })
   })
 
-  it('lists 400 only for routes that take input', () => {
-    expect(errorStatuses(createThing)).toEqual([400])
-    expect(errorStatuses({ ...createThing, body: undefined })).toEqual([])
+  it('lists 400 only for routes that take input, and 401 only for routes that need an actor', () => {
+    expect(errorStatuses(createThing)).toEqual([400, 401])
+    expect(errorStatuses({ ...createThing, auth: 'none' })).toEqual([400])
+    expect(errorStatuses({ ...createThing, body: undefined, auth: 'none' })).toEqual([])
+  })
+
+  it('declares the actor header as the security scheme, and leaves public routes open', () => {
+    expect(doc.components.securitySchemes.ActorHeader).toEqual({ type: 'apiKey', in: 'header', name: 'X-Actor-Id' })
+    const open = buildOpenApi([{ ...createThing, auth: 'none' }])
+    expect(open.paths['/things'].post.security).toBeUndefined()
   })
 })
 
@@ -151,5 +161,52 @@ describe('allowedMethods', () => {
     expect(allowedMethods('/things/abc')).toEqual(['GET', 'PATCH'])
     expect(allowedMethods('/things')).toEqual(['POST'])
     expect(allowedMethods('/other')).toEqual([])
+  })
+})
+
+describe('can', () => {
+  beforeEach(resetRegistry)
+  const actor = { id: '0b7f2f6e-1c3a-4a53-9f55-0d3c0c1d9a11', name: 'Test', kind: 'human' as const }
+
+  it('allows a registered action', () => {
+    registerModule({ name: 'core', dependsOn: [], routes: [], actions: ['thing.read'] })
+    expect(can(actor, 'thing.read', { spaceId: 'x' })).toBe(true)
+    expect(() => authorize(actor, 'thing.read')).not.toThrow()
+  })
+
+  it('fails loudly on an action no layer registered, so a typo is never quietly allowed', () => {
+    registerModule({ name: 'core', dependsOn: [], routes: [], actions: ['thing.read'] })
+    expect(() => can(actor, 'thing.raed')).toThrow(/Unknown action/)
+  })
+})
+
+describe('pagination', () => {
+  it('round-trips a cursor and rejects one made for another sort', () => {
+    const cursor = encodeCursor('position', ['a1', '0b7f2f6e-1c3a-4a53-9f55-0d3c0c1d9a11'])
+    expect(decodeCursor(cursor, 'position')).toEqual(['a1', '0b7f2f6e-1c3a-4a53-9f55-0d3c0c1d9a11'])
+    expect(() => decodeCursor(cursor, '-created_at')).toThrow(ApiError)
+    expect(decodeCursor(undefined, 'position')).toBeUndefined()
+  })
+
+  it('rejects garbage as a 400 on query.cursor', () => {
+    for (const bad of ['not a cursor', Buffer.from('{"sort":"position"}').toString('base64url')]) {
+      try {
+        decodeCursor(bad, 'position')
+        expect.unreachable()
+      } catch (err) {
+        const { status, body } = toErrorResponse(err)
+        expect(status).toBe(400)
+        expect(Object.keys(body.error.fields)).toEqual(['query.cursor'])
+      }
+    }
+  })
+
+  it('has a next cursor only when a row beyond the limit came back', () => {
+    const rows = ['a', 'b', 'c'].map((key, i) => ({ key, id: String(i) }))
+    const cursorOf = (r: { key: string; id: string }): [string, string] => [r.key, r.id]
+    const first = toPage(rows, 2, 'position', (r) => r.key, cursorOf)
+    expect(first.data).toEqual(['a', 'b'])
+    expect(decodeCursor(first.next_cursor!, 'position')).toEqual(['b', '1'])
+    expect(toPage(rows.slice(0, 2), 2, 'position', (r) => r.key, cursorOf).next_cursor).toBeNull()
   })
 })

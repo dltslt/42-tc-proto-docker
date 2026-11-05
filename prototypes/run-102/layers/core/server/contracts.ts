@@ -4,6 +4,7 @@ import { CONTRACT_VERSION, defineContract } from './lib/contract'
 
 export const indexContract = defineContract({
   method: 'get',
+  auth: 'none',
   path: '/',
   summary: 'Contract version and the layers that are loaded',
   tag: 'core',
@@ -15,6 +16,7 @@ export const indexContract = defineContract({
         depends_on: z.array(z.string()),
         missing_dependencies: z.array(z.string()),
         route_count: z.number().int(),
+        actions: z.array(z.string()),
       }),
     ),
   }),
@@ -22,6 +24,7 @@ export const indexContract = defineContract({
 
 export const healthContract = defineContract({
   method: 'get',
+  auth: 'none',
   path: '/health',
   summary: 'Is the server up',
   tag: 'core',
@@ -30,6 +33,7 @@ export const healthContract = defineContract({
 
 export const openapiContract = defineContract({
   method: 'get',
+  auth: 'none',
   path: '/openapi.json',
   summary: 'This API, described in OpenAPI 3.0',
   tag: 'core',

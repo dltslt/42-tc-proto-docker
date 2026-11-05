@@ -19,6 +19,9 @@ export interface RouteContract {
   query?: z.ZodType
   body?: z.ZodType
   response: z.ZodType
+  // Who may call it. Default 'actor': the caller must send X-Actor-Id. 'none' is for routes that
+  // must work before a caller has chosen who to be (health, the API description, the actor list).
+  auth?: 'actor' | 'none'
   // Success status; default 200.
   status?: number
   // Error statuses a client can expect besides 400, which is implied by any input schema.
@@ -61,5 +64,6 @@ export function validateInput<C extends RouteContract>(contract: C, raw: RawInpu
 export function errorStatuses(contract: RouteContract): number[] {
   const statuses = new Set(contract.errors ?? [])
   if (contract.params || contract.query || contract.body) statuses.add(400)
+  if (contract.auth !== 'none') statuses.add(401)
   return [...statuses].sort()
 }

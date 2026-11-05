@@ -48,6 +48,7 @@ function operationOf(route: RouteContract): JsonSchema {
     }
   }
   const operation: JsonSchema = { summary: route.summary, tags: [route.tag], responses }
+  if (route.auth !== 'none') operation.security = [{ ActorHeader: [] }]
   const parameters = [
     ...(route.params ? parametersOf(route.params, 'path') : []),
     ...(route.query ? parametersOf(route.query, 'query') : []),
@@ -73,6 +74,10 @@ export function buildOpenApi(routes: RouteContract[]): JsonSchema {
     // Paths are relative to this base, which is relative to where the document was fetched.
     servers: [{ url: '/api/v1' }],
     paths,
-    components: { schemas: { Error: toSchema(ErrorBodySchema, 'output') } },
+    components: {
+      schemas: { Error: toSchema(ErrorBodySchema, 'output') },
+      // Until real login exists the caller names itself in a header. One function reads it (getActor).
+      securitySchemes: { ActorHeader: { type: 'apiKey', in: 'header', name: 'X-Actor-Id' } },
+    },
   }
 }

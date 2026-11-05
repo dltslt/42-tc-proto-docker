@@ -6,3 +6,7 @@ export async function api(path: string, init?: RequestInit): Promise<{ status: n
   const res = await fetch(`${BASE}/api/v1${path}`, init)
   return { status: res.status, body: await res.json(), headers: res.headers }
 }
+
+// Same call, as a given actor: sends the X-Actor-Id header.
+export const apiAs = (actorId: string | undefined, path: string, init: RequestInit = {}) =>
+  api(path, { ...init, headers: { ...(actorId ? { 'x-actor-id': actorId } : {}), ...init.headers } })
