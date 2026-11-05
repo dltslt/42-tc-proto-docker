@@ -118,6 +118,23 @@ services:
         volume:
           subpath: run-101/node_modules
 
+  run-102:
+    extends:
+      service: base-proto
+    profiles: ["run-102", "all"]
+    ports:
+      - "3102:3102"
+    environment:
+      - PORT=3102
+      - DB_NAME=proto_run_102
+    volumes:
+      - ./prototypes/run-102:/app
+      - type: volume
+        source: pnpm_store
+        target: /app/node_modules
+        volume:
+          subpath: run-102/node_modules
+
 volumes:
   postgres_data:
   mongo_data:
