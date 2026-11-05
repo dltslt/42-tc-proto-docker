@@ -2,6 +2,7 @@
 // Items are reached through the items layer's service (getItem), never by reading its table.
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import type { Database, Tx } from '#layers/core/server/db/client'
+import { PG, pgError } from '#layers/core/server/db/errors'
 import { keysetAfter, keysetOrder, type Keyset } from '#layers/core/server/db/keyset'
 import type { ActorRef } from '#layers/core/server/lib/actor'
 import { badRequest, conflict, notFound } from '#layers/core/server/lib/errors'
@@ -90,9 +91,15 @@ export async function setLink(db: Db, actor: ActorRef, itemId: string, tagId: st
       changed = linked
         ? (await tx.insert(itemTags).values({ spaceId: item.space_id, itemId, tagId }).onConflictDoNothing().returning({ t: itemTags.tagId })).length > 0
         : (await tx.delete(itemTags).where(where).returning({ t: itemTags.tagId })).length > 0
-    } catch {
-      // The item or the tag was deleted between the check above and the write.
-      throw notFound('Item or tag not found')
+    } catch (err) {
+      // The item or the tag was deleted between the checks above (made before the lock) and the write:
+      // the same-space foreign keys refuse the link. Only that case is "not found"; any other failure
+      // (lost connection, timeout, deadlock) keeps its real status.
+      const pg = pgError(err)
+      if (pg?.code === PG.foreignKeyViolation && /^item_tags_(item|tag)_same_space_fk$/.test(pg.constraint ?? '')) {
+        throw notFound('Item or tag not found')
+      }
+      throw err
     }
     if (changed) {
       await recordEvent(tx, {

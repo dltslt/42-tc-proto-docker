@@ -48,7 +48,7 @@ Nuxt 4.6.3, Zod 4.6.7, Vitest 5.1.0, Drizzle ORM 0.45.4 and drizzle-kit 0.31.11 
 
 ## 7. Numbers
 - Test suite: 203 tests in about 30 seconds once the API-only test server is built (about 20 seconds more when sources changed). A full `nuxt build` for comparison took 1.5 to 3.5 minutes.
-- Final suite: 240 tests in 19 files, about 80 seconds in total including the removal builds (three extra Nitro builds of about 15 seconds each, cached afterwards).
+- Final suite: 250 tests in 20 files (240 in 19 before the tag link fix), about 80 seconds in total including the removal builds (three extra Nitro builds of about 15 seconds each, cached afterwards).
 - Contract test: 17 tests and 88 (route, status) pairs, each called over HTTP and checked against the document.
 - 16 paths and 20 operations in `GET /api/v1/openapi.json`.
 
@@ -105,6 +105,9 @@ No file inside `layers/core`, `workspace`, `events` or `items` was edited. Three
 Two possible fixes for later: derive both lists from the `layers/` folder, or accept the one-line registration as the cost of an explicit order.
 
 Design choices: `tags` reads items only through `getItem` of the items layer. Deleting a tag writes one `tag.deleted` event, not one per link (the answer lists `unlinked_item_ids`). Item delete removes links through the foreign key and writes no tag event. There is no `?tag_id=` filter on `GET /items`: that would edit the items layer, so `GET /tags/:id/items` returns the ids instead.
+
+## After review: the tag link catch
+`setLink` caught every database error and answered 404, so a lost connection would have looked like "tag not found". It now answers 404 only for a foreign key violation (`23503`) on `item_tags_item_same_space_fk` or `item_tags_tag_same_space_fk`, which means the item or tag was deleted between the checks and the write (the checks run before the space lock). Everything else is rethrown with its real status. Behavior fix, contract unchanged: the freeze snapshot did not change. `23505` cannot happen there (`ON CONFLICT DO NOTHING`, and the primary key is the only unique constraint). New tests: `layers/tags/tests/link-errors.test.ts` (10), including a deterministic delete-during-lock race on two real connections. With the old catch, the 8 tests for other failures fail. The suite is now 250 tests in 20 files.
 
 ## Working notes
 
