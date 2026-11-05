@@ -7,7 +7,8 @@ import { defineNitroConfig } from 'nitropack/config'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
 // Lowest layer first, like `extends` in nuxt.config.ts.
-const LAYERS = ['core', 'workspace', 'events', 'items', 'tags']
+// The removal tests build the same app with fewer layers: LAYERS=core,workspace,events and OUT_DIR=<folder>.
+const LAYERS = process.env.LAYERS?.split(',') ?? ['core', 'workspace', 'events', 'items', 'tags']
 
 export default defineNitroConfig({
   compatibilityDate: '2025-07-15',
@@ -15,6 +16,7 @@ export default defineNitroConfig({
   alias: { '#layers': `${root}layers` },
   // This runs in the same container as node_modules, so packages stay as plain imports.
   externals: { trace: false },
+  ...(process.env.OUT_DIR ? { output: { dir: process.env.OUT_DIR } } : {}),
   minify: false,
   sourceMap: false,
 })

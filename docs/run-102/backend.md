@@ -126,4 +126,8 @@ The proof that a feature is a folder: `db/schema.ts`, `services/tags.ts`, `schem
 - **Unit tests** need no server and no database (`layers/core/tests/lib.test.ts`, `layers/items/tests/placement.test.ts`).
 - **Service tests** run on a throwaway database each, with real concurrent connections for the races (`layers/*/tests/*.test.ts`).
 - **HTTP tests** (`tests/*-api.test.ts`) call an API-only Nitro server that `tests/global-setup.ts` builds from `tests/server-app` (about 20 seconds, skipped when no source changed) and starts on port 3902, against a fresh seeded database `proto_run_102_http` that is dropped afterwards. Tests that write never touch `proto_run_102`.
+- **Contract test** (`tests/contract.test.ts`): reads the OpenAPI document, calls every route for each status it promises, checks each body against the document's schema, and fails if a (route, status) pair was never produced.
+- **Removal test** (`tests/removal.test.ts`): builds the API with fewer layers (`LAYERS` and `OUT_DIR` in `tests/server-app/nitro.config.ts`) and checks the rest still works.
+- **Freeze test** (`tests/freeze.test.ts`): the live document must still honour `contract/v1.openapi.json`. After a deliberate addition, run `pnpm contract:freeze` against the running server to save the new snapshot.
+- **Outside-Nuxt client:** `pnpm contract:smoke` (`scripts/openapi-smoke.mjs`) reads only the OpenAPI document and checks every GET route.
 - `pnpm typecheck` checks the server code with TypeScript.

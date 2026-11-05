@@ -14,15 +14,17 @@
 - [x] Task 4: Write path
 - [x] Task 5: Event log
 - [x] Task 6: Extension proof (`tags`)
-- [ ] Task 7: Hardening (next): see the brief
+- [x] Task 7: Hardening, `v1` frozen: see the brief
 
 Tasks are built one at a time, and each is reviewed before the next one starts.
 
 ## 2. What it shows
-<!-- Filled at wrap-up -->
+One versioned `/api/v1`, defined once as Zod contracts, carries spaces, actors, items with a hierarchy, columns and an event log, and a new feature (`tags`) arrived as a folder plus one migration, with no edit inside any existing layer. The database enforces the rules (same-space references, state/column match, append-only events) and every write saves its event in the same transaction. The OpenAPI document is generated from the same schemas that validate requests, and a client with nothing but that document (`scripts/openapi-smoke.mjs`) can call and check every read route.
 
 ## 3. Open questions touched
-- **Which tool generates OpenAPI from Zod?** Zod 4's own `z.toJSONSchema` with `target: 'openapi-3.0'`. No extra package; about 80 lines assemble the document from the route contracts.
+- **Which tool generates OpenAPI from Zod?** Zod 4's own `z.toJSONSchema` with `target: 'openapi-3.0'`. No extra package; about 80 lines assemble the document from the route contracts. `z.fromJSONSchema` cannot read the OpenAPI 3.0 `nullable` flag, so response checking in tests uses a 40-line checker (`scripts/openapi-lite.mjs`).
+- **Can a layer be removed?** Yes when nothing builds on it: `tags` alone, or `items` with `tags`. Removing `events` while `items` stays does not crash; `GET /api/v1` reports `missing_dependencies`. Proven by building the API with fewer layers (`tests/removal.test.ts`).
+- **Can a frozen contract be checked by machine?** Yes. `contract/v1.openapi.json` is the saved document, and `tests/freeze.test.ts` fails if a path, method, status, response field or accepted input value disappears, a type changes, or a new input becomes required. Adding is allowed.
 
 ## 4. Added
 Layers `core`, `workspace`, `items`, `events`. `GET /spaces/:id/events` pages by event id (`next_cursor` is passed back as `?after=`), not by an opaque cursor, because the id is already a stable order. Route contract, error shape, module registry, OpenAPI builder, and `GET /api/v1`, `/health`, `/openapi.json`.
@@ -38,11 +40,17 @@ Layer `tags` (task 6): tables `tags` (unique name per space, ignoring case) and 
 Nuxt 4.6.3, Zod 4.6.7, Vitest 5.1.0, Drizzle ORM 0.45.4 and drizzle-kit 0.31.11 (exact versions), `pg` 8, `fractional-indexing` 4.0.0. PostgreSQL 16.
 
 ## 6. Cut
-<!-- Filled at wrap-up -->
+- No `?tag_id=` filter on `GET /items` (it would edit the items layer) and no tag rename route.
+- No delete route for spaces or actors, no update or delete route for events (append-only), no real auth: the `X-Actor-Id` header is not security and this run must not be deployed.
+- Prepared but not built: `Idempotency-Key`, archiving, `?include=`, the human extension table, roles.
+- The smoke script skips routes that need data the dev database lacks (it has no tags); the contract test covers them.
+- Not changed: the three hand-kept layer lists (see "Task 6: edits to existing files"). They should be derived from the `layers/` folder in the next run.
 
 ## 7. Numbers
 - Test suite: 203 tests in about 30 seconds once the API-only test server is built (about 20 seconds more when sources changed). A full `nuxt build` for comparison took 1.5 to 3.5 minutes.
-- <!-- more at wrap-up -->
+- Final suite: 240 tests in 19 files, about 80 seconds in total including the removal builds (three extra Nitro builds of about 15 seconds each, cached afterwards).
+- Contract test: 17 tests and 91 (route, status) pairs, each called over HTTP and checked against the document.
+- 16 paths and 20 operations in `GET /api/v1/openapi.json`.
 
 ## Decisions beyond the brief
 - **The middleware, not a catch-all route, owns unknown paths.** A catch-all route did not catch a wrong method on a real path: Nitro's router picked the real path and fell through to the page renderer, so `POST /api/v1/health` returned the HTML welcome page with a 200. The middleware checks every `/api/v1` request against the registry instead. Side effect: a route file without a contract is unreachable, so every route must have a contract.
@@ -114,6 +122,8 @@ Design choices: `tags` reads items only through `getItem` of the items layer. De
 - The `#layers/<name>` alias is provided by Nuxt inside the app. Vitest has no Nuxt, so `vitest.config.ts` defines it.
 
 ## Verification status
+Task 7: 240 Vitest tests pass, `pnpm typecheck` passes. `make seed RUN=102` ran twice and the second run inserted nothing (done-when 1). `node scripts/openapi-smoke.mjs` against the live dev server on port 3102 checked every GET route it had data for. The reference page answers 200. Done-when 12 is met by that script and by the contract test, which call every route using only the OpenAPI document for paths and response shapes. Not done: a browser check of the reference page after task 1, and a run on a machine other than this one.
+
 Task 4: 203 Vitest tests pass, twice in a row, with no leftover test databases. Race tests with real concurrent connections: 10 rounds of two simultaneous edits (always one saved, one 409), 10 rounds of an edit beside a move (never a conflict), 15 rounds of two opposite moves that would form a cycle (always one succeeds, one 409), and 25 simultaneous creates under one parent (25 distinct places). Removing the lock from `moveItem` made the cycle test fail both times it ran, so the test does catch the defect. `pnpm typecheck` passes.
 
 Task 3: 100 Vitest tests pass (service tests on throwaway databases, HTTP tests on the seeded server). Checked by hand with curl: no header gives 401, Ada gets 403 for Studio's space and items, Cleo gets 200 for the same item, and paging 11 items that share one `created_at` returns each once. Not yet checked in a browser beyond the reference page.

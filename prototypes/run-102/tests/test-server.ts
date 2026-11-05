@@ -24,10 +24,16 @@ function newestChange(dir: string): number {
 }
 
 // Rebuild only when a source file is newer than the last build (a build takes about 20 seconds).
-export function ensureBuilt(): void {
+// `variant` builds the app with only some layers into its own folder (see removal.test.ts); the default is all of them.
+export interface Variant { layers?: string[]; name?: string; port?: number }
+const entryOf = (v: Variant) => (v.name ? `${root}tests/server-app/.output-${v.name}/server/index.mjs` : entry)
+
+export function ensureBuilt(variant: Variant = {}): void {
+  const entry = entryOf(variant)
   const sources = Math.max(newestChange(`${root}layers`), statSync(`${root}tests/server-app/nitro.config.ts`).mtimeMs, statSync(`${root}package.json`).mtimeMs)
   if (existsSync(entry) && statSync(entry).mtimeMs > sources) return
-  const build = spawnSync('pnpm', ['exec', 'nitro', 'build', 'tests/server-app'], { cwd: root, encoding: 'utf8' })
+  const env = variant.layers ? { ...process.env, LAYERS: variant.layers.join(','), OUT_DIR: `${root}tests/server-app/.output-${variant.name}` } : process.env
+  const build = spawnSync('pnpm', ['exec', 'nitro', 'build', 'tests/server-app'], { cwd: root, encoding: 'utf8', env })
   if (build.status !== 0) throw new Error(`Building the test server failed:\n${build.stdout}\n${build.stderr}`)
 }
 
@@ -53,12 +59,14 @@ export async function dropDatabase(name: string): Promise<void> {
   }
 }
 
-export async function startServer(dbName: string): Promise<ChildProcess> {
-  const url = `http://localhost:${TEST_PORT}/api/v1/health`
+export async function startServer(dbName: string, variant: Variant = {}): Promise<ChildProcess> {
+  const port = variant.port ?? TEST_PORT
+  const entry = entryOf(variant)
+  const url = `http://localhost:${port}/api/v1/health`
   if (await fetch(url).then((r) => r.ok, () => false)) {
-    throw new Error(`Port ${TEST_PORT} is already in use: is another test run still going?`)
+    throw new Error(`Port ${port} is already in use: is another test run still going?`)
   }
-  const child = spawn('node', [entry], { env: { ...process.env, PORT: String(TEST_PORT), DB_NAME: dbName }, stdio: ['ignore', 'pipe', 'pipe'] })
+  const child = spawn('node', [entry], { env: { ...process.env, PORT: String(port), DB_NAME: dbName }, stdio: ['ignore', 'pipe', 'pipe'] })
   let log = ''
   child.stdout.on('data', (d) => (log += d))
   child.stderr.on('data', (d) => (log += d))

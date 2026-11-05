@@ -106,3 +106,29 @@ describe('the layer is an add-on', () => {
     expect(Object.keys(spec.paths)).toEqual(expect.arrayContaining(['/tags', '/tags/{id}', '/items/{id}/tags/{tag_id}']))
   })
 })
+
+describe('simultaneous requests (separate connections, one server)', () => {
+  it('two creates of the same name: one 201, one 409', async () => {
+    const space = await newSpace()
+    const results = await Promise.all([1, 2, 3, 4].map(() => call(ada, 'POST', '/tags', { space_id: space, name: 'race' })))
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409, 409, 409])
+    expect((await apiAs(ada, `/spaces/${space}/tags`)).body.data).toHaveLength(1)
+  })
+
+  it('many identical links make one link and one event', async () => {
+    const space = await newSpace()
+    const [item, tag] = [await mkItem(space), await mkTag(space, 'once')]
+    const results = await Promise.all(Array.from({ length: 6 }, () => call(ada, 'PUT', `/items/${item.id}/tags/${tag.id}`)))
+    expect(results.every((r) => r.status === 200 && r.body.tag_ids.length === 1)).toBe(true)
+    expect((await events(space)).filter((e) => e.type === 'item.tagged')).toHaveLength(1)
+  })
+
+  it('a link racing a tag delete ends as 200/404 answers, never a 500, and leaves no orphan link', async () => {
+    const space = await newSpace()
+    const item = await mkItem(space)
+    const tag = await mkTag(space, 'fleeting')
+    const results = await Promise.all([call(ada, 'PUT', `/items/${item.id}/tags/${tag.id}`), call(ada, 'DELETE', `/tags/${tag.id}`)])
+    for (const r of results) expect([200, 404]).toContain(r.status)
+    expect((await apiAs(ada, `/items/${item.id}/tags`)).body.tag_ids).toEqual([])
+  })
+})

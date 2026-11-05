@@ -11,7 +11,9 @@
     "postinstall": "nuxt prepare",
     "db:seed": "tsx server/seed.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p .nuxt/tsconfig.server.json"
+    "typecheck": "tsc --noEmit -p .nuxt/tsconfig.server.json",
+    "contract:freeze": "node scripts/freeze-openapi.mjs",
+    "contract:smoke": "node scripts/openapi-smoke.mjs"
   },
   "dependencies": {
     "drizzle-orm": "0.45.4",
