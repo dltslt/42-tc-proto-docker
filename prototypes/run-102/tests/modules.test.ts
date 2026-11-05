@@ -13,6 +13,6 @@ describe('GET /api/v1 module list', () => {
 
   it('orders layers from the bottom of the stack up', async () => {
     const { body } = await api('')
-    expect(body.modules.map((m: { name: string }) => m.name)).toEqual(['core', 'workspace', 'events', 'items'])
+    expect(body.modules.map((m: { name: string }) => m.name)).toEqual(['core', 'workspace', 'events', 'items', 'tags'])
   })
 })

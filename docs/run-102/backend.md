@@ -12,6 +12,13 @@ All routes live under `/api/v1`. Route files are in `layers/<name>/server/api/v1
 | `GET /api/v1/spaces` | workspace | needed | Only the spaces the caller is a member of |
 | `GET /api/v1/spaces/:id/columns` | workspace | needed | Columns of a space in board order (404 unknown space, 403 not a member) |
 | `GET /api/v1/spaces/:id/events` | events | needed | The event log of a space, oldest first, with filters and `?after=<event id>` (404 unknown space, 403 not a member) |
+| `GET /api/v1/spaces/:id/tags` | tags | needed | Tags of a space, sorted by name |
+| `POST /api/v1/tags` | tags | needed | Create a tag (409 if the name exists in the space, ignoring case). 201 |
+| `DELETE /api/v1/tags/:id` | tags | needed | Delete a tag and its links |
+| `GET /api/v1/tags/:id/items` | tags | needed | Ids of the items with this tag |
+| `GET /api/v1/items/:id/tags` | tags | needed | Ids of an item's tags |
+| `PUT /api/v1/items/:id/tags/:tag_id` | tags | needed | Tag an item (400 if the tag is from another space) |
+| `DELETE /api/v1/items/:id/tags/:tag_id` | tags | needed | Remove the tag from the item |
 | `GET /api/v1/items?space_id=` | items | needed | Items of a space, with filters, search, sorting and cursor pagination |
 | `GET /api/v1/items/:id` | items | needed | One item (404 unknown, 403 if it lives in a space the caller is not in) |
 | `POST /api/v1/items` | items | needed | Create an item: `space_id` and `title` are enough. 201 |
@@ -110,6 +117,9 @@ Adding a migration after changing a schema file: `docker compose exec run-102 pn
 ## Layer code (`layers/events/server/`)
 - `services/record.ts`: `recordEvent` and the change helpers other layers call. `services/read.ts`: the log read.
 - `schemas.ts`, `contracts.ts`, `api/v1/spaces/[id]/events.get.ts`: the schema, the contract and the route.
+
+## Layer code (`layers/tags/server/`)
+The proof that a feature is a folder: `db/schema.ts`, `services/tags.ts`, `schemas.ts`, `contracts.ts`, `plugins/tags.module.ts` and `api/v1/...`. Writes take the space lock and record their event in the same transaction; items are read through the items service.
 
 ## Tests
 `pnpm test` runs Vitest inside the container; the dev server does not need to be running.

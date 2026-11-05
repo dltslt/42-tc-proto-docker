@@ -7,7 +7,7 @@ import { defineNitroConfig } from 'nitropack/config'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
 // Lowest layer first, like `extends` in nuxt.config.ts.
-const LAYERS = ['core', 'workspace', 'events', 'items']
+const LAYERS = ['core', 'workspace', 'events', 'items', 'tags']
 
 export default defineNitroConfig({
   compatibilityDate: '2025-07-15',
