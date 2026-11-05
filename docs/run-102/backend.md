@@ -13,6 +13,10 @@ All routes live under `/api/v1`. Route files are in `layers/<name>/server/api/v1
 | `GET /api/v1/spaces/:id/columns` | workspace | needed | Columns of a space in board order (404 unknown space, 403 not a member) |
 | `GET /api/v1/items?space_id=` | items | needed | Items of a space, with filters, search, sorting and cursor pagination |
 | `GET /api/v1/items/:id` | items | needed | One item (404 unknown, 403 if it lives in a space the caller is not in) |
+| `POST /api/v1/items` | items | needed | Create an item: `space_id` and `title` are enough. 201 |
+| `PATCH /api/v1/items/:id` | items | needed | Edit fields. Text fields need `expected_version` |
+| `POST /api/v1/items/:id/move` | items | needed | Change parent, column and place among the siblings in one step |
+| `DELETE /api/v1/items/:id` | items | needed | Delete; with children, `?mode=subtree` or `?mode=lift` |
 
 Any other `/api/v1` request gets the error shape: 405 with an `Allow` header when the path exists for other methods, 404 when it does not.
 
@@ -20,6 +24,18 @@ Any other `/api/v1` request gets the error shape: 405 with an `Allow` header whe
 Every list answers `{ "data": [...], "next_cursor": "..." | null }`. Pass `next_cursor` back as `?cursor=` for the next page; `null` means the end. `?limit=` is 1 to 200 (default 50). The cursor is opaque and tied to the sort it came from.
 
 `GET /items` filters: `state`, `type`, `column_id`, `lead_id`, `parent_id` (an item id, or `null` for root items) and `q` (case-insensitive text in the title or description; `%` and `_` are plain characters). Sort with `?sort=position`, `-position`, `created_at` or `-created_at`; ties are broken by id. Discarded items are returned like any other: hiding them is the client's choice.
+
+### Writes
+Every write is one transaction that saves the change **and its event** together. `layers/items/server/services/write.ts` holds the rules; the route files only validate and call it.
+
+- **One writer per space.** A write first takes a lock on its space (`lockSpace`) and holds it until it commits. Writes inside one space run one after another; reads and other spaces are not affected. This is what makes the cycle check, the version check and the order keys safe, and it keeps event ids in commit order.
+- **Create:** `space_id` and `title`. The item goes to the end of its siblings, in the first column of the requested state (default `unstarted`). Optional: `description`, `type`, `parent_id`, `column_id`, `state`, `lead_id`. A column and a state given together must agree.
+- **Edit (`PATCH`):** send only what changed. `title`, `description`, `type` and `lead_id` are *versioned*: the request must carry `expected_version`, and a mismatch is a **409 whose `error.current` is the stored item**, so a client can show both versions. A successful edit raises `version` by one. Saving the same value again changes nothing and writes no event. `state` is not versioned: it moves the item to the first column of that state, last write wins.
+- **Move:** `parent_id` (null = root), `column_id` and a place, `after_id` or `before_id` (a sibling). Omitted fields stay as they are; with no neighbour the item goes to the end of the siblings. A move never checks or raises `version`, so it cannot conflict with a text edit. Moving an item under itself or a descendant is a **409**. Clients never see order keys being computed: they name a neighbour.
+- **Order keys:** every item has one total order among its siblings (same parent), and a column shows the items of that column in that order. Two siblings can end up with the same key; the move then gives the tied siblings after the gap fresh keys (one `item.moved` event each) instead of failing.
+- **Delete:** an item with children and no `mode` is a **409**. `mode=subtree` deletes the item and all its descendants. `mode=lift` moves the children up one level into the place the item had, then deletes it. The answer lists `deleted_ids` and `lifted_ids`.
+- **Events written** (type, what `changes` holds as `{ from, to }`): `item.created` (the initial fields), `item.updated` (title, description, type, lead_id, state, column_id), `item.moved` (parent_id, column_id, state, position), `item.deleted` (the removed fields). A subtree delete writes one `item.deleted` per item; a lift writes one `item.moved` per child. A write that changes nothing writes nothing.
+- **Rejected input** is a 400 with the field named: unknown fields (the body schemas are strict), a title that is empty, over 200 characters or on several lines, a parent, column or neighbour from another space, a lead who is not a member.
 
 ### Who is calling
 `getActor()` (workspace layer) reads the `X-Actor-Id` header and looks the actor up. A missing, malformed or unknown id is a 401. The header is not security: anyone can send any id. Real login or API keys replace this one function. The route wrapper in `core` calls it through a hook that the workspace layer sets at server start, so `core` never imports a layer above it.
@@ -81,5 +97,15 @@ Adding a migration after changing a schema file: `docker compose exec run-102 pn
 - `lib/pagination.ts`, `db/keyset.ts`: the list envelope, cursors and the SQL for "rows after this one".
 - `contracts.ts`, `plugins/core.module.ts`, `middleware/api-v1.ts`, `api/v1/*`.
 
+## Layer code (`layers/items/server/`)
+- `services/write.ts`: create, update, move, delete.
+- `services/read.ts`: list and get.
+- `lib/placement.ts`: pure order-key helpers, including the repair of tied keys.
+- `schemas.ts`, `contracts.ts`, `api/v1/items*`: the request and response schemas, the contracts, and the routes.
+
 ## Tests
-`pnpm test` runs Vitest inside the container. Unit tests (`layers/core/tests/lib.test.ts`) need no server. HTTP tests call the running server on `localhost:$PORT`, so start it with `make up RUN=102` first.
+`pnpm test` runs Vitest inside the container; the dev server does not need to be running.
+- **Unit tests** need no server and no database (`layers/core/tests/lib.test.ts`, `layers/items/tests/placement.test.ts`).
+- **Service tests** run on a throwaway database each, with real concurrent connections for the races (`layers/*/tests/*.test.ts`).
+- **HTTP tests** (`tests/*-api.test.ts`) call an API-only Nitro server that `tests/global-setup.ts` builds from `tests/server-app` (about 20 seconds, skipped when no source changed) and starts on port 3902, against a fresh seeded database `proto_run_102_http` that is dropped afterwards. Tests that write never touch `proto_run_102`.
+- `pnpm typecheck` checks the server code with TypeScript.

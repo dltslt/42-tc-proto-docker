@@ -36,6 +36,8 @@ flowchart TD
 - **Execution boundaries.** All API code is server-only (Nitro). `app/app.vue` is universal: it runs on the server for SSR, then in the browser.
 - **Identity is plugged in, not imported.** `core` runs `getActor()` for every route that needs an actor, but the function lives in `workspace`, which `core` must not import. The workspace layer registers it with a hook at server start.
 - **Isolation and policy are separate.** Space membership is enforced by the services; `can()` is a policy stub that allows everything.
+- **One writer per space.** Writes take a per-space lock, so the rules (no cycles, version checks, free order keys) are checked against a tree nobody else is changing, and event ids follow commit order.
+- **Clients name a neighbour, not a key.** Move takes `after_id` or `before_id`; the server computes the fractional order key, and repairs ties.
 - **Keyset pagination.** Lists page by "rows after this (key, id)", not OFFSET, so pages stay stable while data changes. Timestamps travel in cursors as text, because a JavaScript Date would drop microseconds.
 - **Persistence.** PostgreSQL only. Each layer owns its tables, one config collects them into one ordered migration history, and the database itself enforces space boundaries, column/state consistency and the append-only log.
 

@@ -11,8 +11,9 @@
 - [x] Task 1: Skeleton
 - [x] Task 2: Database
 - [x] Task 3: Identity and read path
-- [ ] Task 4: Write path (next)
-- [ ] Tasks 5 to 7: see the brief
+- [x] Task 4: Write path
+- [ ] Task 5: Event log (next)
+- [ ] Tasks 6 to 7: see the brief
 
 Tasks are built one at a time, and each is reviewed before the next one starts.
 
@@ -37,7 +38,7 @@ Nuxt 4.6.3, Zod 4.6.7, Vitest 5.1.0, Drizzle ORM 0.45.4 and drizzle-kit 0.31.11 
 <!-- Filled at wrap-up -->
 
 ## 7. Numbers
-- Full test suite: about 11 seconds for 49 tests, of which the database tests create and drop 6 throwaway databases.
+- Test suite: 203 tests in about 30 seconds once the API-only test server is built (about 20 seconds more when sources changed). A full `nuxt build` for comparison took 1.5 to 3.5 minutes.
 - <!-- more at wrap-up -->
 
 ## Decisions beyond the brief
@@ -70,7 +71,21 @@ Nuxt 4.6.3, Zod 4.6.7, Vitest 5.1.0, Drizzle ORM 0.45.4 and drizzle-kit 0.31.11 
 - **HTTP tests run against their own server and database.** `tests/server-app/nitro.config.ts` builds an API-only Nitro server from the same `layers/*/server` folders (no Vue), and `tests/global-setup.ts` starts it on port 3902 against a fresh `proto_run_102_http` database, seeded with the demo data, then drops everything afterwards. The dev database is never touched by tests. Tests that really write cannot leave junk, which matters because events cannot be deleted.
 - **Why not the Nuxt build:** a separate production `nuxt build` took 1.5 to 3.5 minutes, nearly all of it in Nitro, even with dependency tracing, minifying and source maps off and the output on the container's own disk. The API-only build takes about 20 seconds, and is skipped when no source file is newer than the last build.
 - **`nitropack` is a dev dependency,** pinned to the version Nuxt already uses (2.13.5), because pnpm does not let the project import a package that only Nuxt depends on.
-- **Not tested by this server:** the Vue page. It is checked in a browser instead.
+- **Not tested by this server:** the Vue page. It is checked in a browser instead. The write routes were also exercised once by hand on the real Nuxt dev server (create, edit, stale edit, state change, cycle, delete, wrong method), and every status matched the test server's. The demo database was rebuilt from the seed afterwards, since events cannot be deleted.
+- **Move names a neighbour (`after_id` / `before_id`), not an order key.** The brief said `position`. Clients would otherwise need the key library, and could not place an item between two siblings that other clients are moving. The key stays readable in responses.
+- **One total order among siblings; a column is a view of it.** An item has one key. A column lists its items in sibling order, so dropping a card between two cards of a column means "after the first of them", and any items of other columns lying between stay out of the way.
+- **Version rule:** `title`, `description`, `type` and `lead_id` need `expected_version`; `state`, moves and deletes do not. Saving an unchanged value neither raises the version nor writes an event.
+- **Edits are checked twice:** the version is compared under the space lock, and the `UPDATE` itself says `WHERE version = …`, so a missed lock would still end in a 409 and never in a lost edit.
+- **Lifting children on delete** puts them where the deleted item was among its siblings, in their own order. Deeper levels stay where they were.
+- **`lead_id` must belong to a member of the space** is checked in the service. A composite foreign key to `memberships` would make it a database rule; it was left out because it needs `ON DELETE SET NULL (lead_id)` on a composite key, which Drizzle cannot express, and members cannot be removed in v1.
+- **Tied order keys are repaired, not prevented.** The space lock makes new ties very unlikely, but old data or direct SQL could still have them, so the move gives the tied siblings after the gap fresh keys (and writes an event for each). The tests force a tie by hand.
+- **Events for rewritten siblings and cascaded deletes are written one per row.** A write of one request can therefore produce several events. They share the actor and the transaction.
+- **No create-space route.** v1 has none, so HTTP tests make spaces directly in the throwaway database.
+
+## For task 5
+- Replaying with `?after=<id>` is safe because of the space lock: within one space, an event with a smaller id has always committed before one with a bigger id. Verify this with a concurrency test.
+
+## Working notes
 
 - **`events` moved below `items`:** `core ← workspace ← events ← items`. The brief had `events` above `items`, but `items` calls the event writer, and a layer may only build on layers below it. The brief now says so, and `events` also owns the writer (`recordEvent`), not `core`. `core` keeps the registry of event types.
 - **One writer at a time per space.** Every write takes a transaction-level advisory lock on its space first (`lockSpace`, workspace layer). The brief asked for the lock only on parent changes. A lock on every write also keeps event ids in commit order within a space (needed for `?after=` in task 5, otherwise a slower transaction could commit an event with a smaller id after a reader had already moved past it), and rules out deadlocks. The cost is that writes in one space queue up; reads and other spaces are unaffected.
@@ -86,6 +101,8 @@ Nuxt 4.6.3, Zod 4.6.7, Vitest 5.1.0, Drizzle ORM 0.45.4 and drizzle-kit 0.31.11 
 - The `#layers/<name>` alias is provided by Nuxt inside the app. Vitest has no Nuxt, so `vitest.config.ts` defines it.
 
 ## Verification status
+Task 4: 203 Vitest tests pass, twice in a row, with no leftover test databases. Race tests with real concurrent connections: 10 rounds of two simultaneous edits (always one saved, one 409), 10 rounds of an edit beside a move (never a conflict), 15 rounds of two opposite moves that would form a cycle (always one succeeds, one 409), and 25 simultaneous creates under one parent (25 distinct places). Removing the lock from `moveItem` made the cycle test fail both times it ran, so the test does catch the defect. `pnpm typecheck` passes.
+
 Task 3: 100 Vitest tests pass (service tests on throwaway databases, HTTP tests on the seeded server). Checked by hand with curl: no header gives 401, Ada gets 403 for Studio's space and items, Cleo gets 200 for the same item, and paging 11 items that share one `created_at` returns each once. Not yet checked in a browser beyond the reference page.
 
 Task 2: 49 Vitest tests pass, twice in a row, with no leftover test databases. `make seed RUN=102` inserted 4 actors, 5 spaces, 7 memberships, 20 columns, 19 items and 24 events, and a second run inserted nothing. On a fresh empty database, two seeds started at the same moment applied the 2 migrations once and inserted each row once. A wrong password and an unreachable host each fail with a one-line error (`28P01`, `ENOTFOUND`). Not yet checked: the seeded data through the API (task 3) and in a browser.
