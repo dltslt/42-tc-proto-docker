@@ -66,6 +66,12 @@ Nuxt 4.6.3, Zod 4.6.7, Vitest 5.1.0, Drizzle ORM 0.45.4 and drizzle-kit 0.31.11 
 - **Added to the index route:** each layer's list of `actions`. Additive, so the contract is unchanged.
 - **Unused `can()` argument names** (`_actor`, `_resource`) are deliberate: the signature is what routes call today, and rules fill in the body later.
 
+## Task 4 decisions
+- **HTTP tests run against their own server and database.** `tests/server-app/nitro.config.ts` builds an API-only Nitro server from the same `layers/*/server` folders (no Vue), and `tests/global-setup.ts` starts it on port 3902 against a fresh `proto_run_102_http` database, seeded with the demo data, then drops everything afterwards. The dev database is never touched by tests. Tests that really write cannot leave junk, which matters because events cannot be deleted.
+- **Why not the Nuxt build:** a separate production `nuxt build` took 1.5 to 3.5 minutes, nearly all of it in Nitro, even with dependency tracing, minifying and source maps off and the output on the container's own disk. The API-only build takes about 20 seconds, and is skipped when no source file is newer than the last build.
+- **`nitropack` is a dev dependency,** pinned to the version Nuxt already uses (2.13.5), because pnpm does not let the project import a package that only Nuxt depends on.
+- **Not tested by this server:** the Vue page. It is checked in a browser instead.
+
 ## Working notes
 - Adding a package: `docker compose exec run-102 pnpm add <package>`. If pnpm refuses with "Unexpected store location", add `--store-dir /root/.local/share/pnpm/store/v11` (the location depends on how `node_modules` was installed).
 - Files written by a command in the container belong to root on the host. After `pnpm add`, run `chown` inside the container with the host user's id, or later edits on the host fail.
