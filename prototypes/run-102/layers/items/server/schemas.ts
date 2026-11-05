@@ -50,3 +50,66 @@ export const ListItemsQuery = PageParams.extend({
   q: z.string().trim().min(1).max(200).optional().describe('Case-insensitive text found in the title or description'),
 })
 export type ListItemsQuery = z.output<typeof ListItemsQuery>
+
+// ---- Write requests. `strictObject` rejects fields the API does not know, so a typo is a 400, not a silent no-op.
+
+// One line of plain text. `trim()` runs first, so "  " counts as empty.
+const Title = z.string().trim().min(1).max(200).regex(/^[^\r\n]+$/, 'Must be a single line')
+const Description = z.string().max(50_000).describe('Markdown')
+
+export const CreateItemBody = z.strictObject({
+  space_id: z.uuid().describe('The space to create the item in; the caller must be a member'),
+  title: Title.describe('The only required field besides the space'),
+  description: Description.optional(),
+  type: z.enum(ITEM_TYPES).optional().describe('Default "task"'),
+  parent_id: z.uuid().nullable().optional().describe('Omit or null for a root item'),
+  column_id: z.uuid().optional().describe('Default: the first column of the requested state'),
+  state: z.enum(STATES).optional().describe('Default "unstarted". Must match the column when both are given'),
+  lead_id: z.uuid().nullable().optional().describe('An actor who is a member of the space'),
+})
+export type CreateItemBody = z.output<typeof CreateItemBody>
+
+// Fields where two people can overwrite each other's work. Changing one needs `expected_version`.
+export const VERSIONED_FIELDS = ['title', 'description', 'type', 'lead_id'] as const
+
+export const PatchItemBody = z
+  .strictObject({
+    title: Title.optional(),
+    description: Description.optional(),
+    type: z.enum(ITEM_TYPES).optional(),
+    lead_id: z.uuid().nullable().optional().describe('null clears the lead'),
+    state: z.enum(STATES).optional().describe('Moves the item to the first column of that state. Last write wins; no version needed'),
+    expected_version: z.number().int().min(1).optional().describe('The `version` you started from. Required with title, description, type or lead_id; a mismatch is a 409'),
+  })
+  .superRefine((body, ctx) => {
+    const fields = Object.keys(body).filter((k) => k !== 'expected_version')
+    if (fields.length === 0) ctx.addIssue({ code: 'custom', message: 'Send at least one field to change', path: [] })
+    if (VERSIONED_FIELDS.some((f) => body[f] !== undefined) && body.expected_version === undefined) {
+      ctx.addIssue({ code: 'custom', message: 'Required when changing title, description, type or lead_id', path: ['expected_version'] })
+    }
+  })
+export type PatchItemBody = z.output<typeof PatchItemBody>
+
+export const MoveItemBody = z
+  .strictObject({
+    parent_id: z.uuid().nullable().optional().describe('The new parent; null makes it a root item; omit to keep the parent'),
+    column_id: z.uuid().optional().describe('The new column (the item takes its state); omit to keep the column'),
+    after_id: z.uuid().optional().describe('Place right after this sibling'),
+    before_id: z.uuid().optional().describe('Place right before this sibling'),
+  })
+  .superRefine((body, ctx) => {
+    if (Object.keys(body).length === 0) ctx.addIssue({ code: 'custom', message: 'Send parent_id, column_id, after_id or before_id', path: [] })
+    if (body.after_id && body.before_id) ctx.addIssue({ code: 'custom', message: 'Send after_id or before_id, not both', path: ['before_id'] })
+  })
+export type MoveItemBody = z.output<typeof MoveItemBody>
+
+export const DELETE_MODES = ['subtree', 'lift'] as const
+export const DeleteItemQuery = z.object({
+  mode: z.enum(DELETE_MODES).optional().describe('Needed when the item has children: "subtree" deletes them too, "lift" moves them up one level'),
+})
+export type DeleteItemQuery = z.output<typeof DeleteItemQuery>
+
+export const DeleteResult = z.object({
+  deleted_ids: z.array(z.uuid()),
+  lifted_ids: z.array(z.uuid()).describe('Children that moved up one level (mode "lift")'),
+})

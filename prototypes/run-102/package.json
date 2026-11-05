@@ -10,7 +10,8 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "db:seed": "tsx server/seed.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p .nuxt/tsconfig.server.json"
   },
   "dependencies": {
     "drizzle-orm": "0.45.4",
@@ -28,6 +29,7 @@
     "drizzle-kit": "0.31.11",
     "nitropack": "2.13.5",
     "tsx": "^4.19.2",
+    "typescript": "~5.9.3",
     "vitest": "^5.1.0"
   }
 }

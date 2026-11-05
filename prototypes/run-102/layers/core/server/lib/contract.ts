@@ -4,7 +4,7 @@ import type { z } from 'zod'
 import { badRequest, fieldsFromZod, type ErrorFields } from './errors'
 
 // Bumped only by a deliberate release, never by adding a field or a route.
-export const CONTRACT_VERSION = 'v1'
+export const CONTRACT_VERSION = 'v1' as const
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete'
 
