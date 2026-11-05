@@ -40,6 +40,13 @@ Client code: `layers/core/server/db/` holds the connection pool (`getDb`), `with
 
 Adding a migration after changing a schema file: `docker compose exec run-102 pnpm exec drizzle-kit generate --name <what>`.
 
+## Seeding
+`make seed RUN=102` runs `server/seed.ts` in the container. It applies every migration, then loads the demo data in one transaction.
+- **Demo data** (`server/seed/fixtures.ts`): 4 actors (Ada, Ben, Cleo and the agent Lurch), 5 spaces (three personal, "Dinner party" and "Studio"), 4 columns per space, and 19 items. The Dinner party has a project, stories and tasks three levels deep, with items in every state.
+- **Repeatable:** every row has a readable slug that maps to the same uuid each time (`fixtureId`). Every insert is `ON CONFLICT DO NOTHING`, and an event is written only for a row that this run really inserted. A second run adds nothing, not even events.
+- **Safe to run at the same time:** migrations are guarded by an advisory lock, and a conflicting insert waits for the other transaction to finish.
+- **Failures are one readable line:** a wrong password prints `failed (28P01)` and an unreachable host prints `failed (ENOTFOUND)`.
+
 ## Validation & Error Handling
 - Input is validated by the contract's Zod schemas. All problems are reported together as a 400, with a field path such as `query.limit`.
 - One error shape for every failure: `{ "error": { "code", "message", "fields" } }`. Codes: `invalid_input` 400, `unauthenticated` 401, `forbidden` 403, `not_found` 404, `method_not_allowed` 405, `conflict` 409.

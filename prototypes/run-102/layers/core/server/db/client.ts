@@ -22,6 +22,9 @@ export function databaseUrl(dbName?: string): string {
 
 export function createDb(url: string): { db: Database; pool: pg.Pool } {
   const pool = new pg.Pool({ connectionString: url, connectionTimeoutMillis: 30_000 })
+  // An idle connection can be dropped by the server (restart, admin kill). Without a listener Node treats
+  // that "error" event as uncaught and exits. The pool discards the dead connection and opens a new one.
+  pool.on('error', (err) => console.error('[db] idle connection lost:', err.message))
   return { db: drizzle(pool), pool }
 }
 
