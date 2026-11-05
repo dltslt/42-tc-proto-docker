@@ -13,7 +13,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p .nuxt/tsconfig.server.json",
     "contract:freeze": "node scripts/freeze-openapi.mjs",
-    "contract:smoke": "node scripts/openapi-smoke.mjs"
+    "contract:smoke": "node scripts/openapi-smoke.mjs",
+    "contract:smoke:write": "node scripts/openapi-smoke.mjs http://localhost:3102 --write"
   },
   "dependencies": {
     "drizzle-orm": "0.45.4",

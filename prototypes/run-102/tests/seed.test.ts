@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createTestDatabase, type TestDatabase } from '#layers/core/tests/test-db'
 import { fixtureId, itemFixtures, spaceFixtures } from '../server/seed/fixtures'
 import { loadFixtures } from '../server/seed/load'
+import { linkFixtures, loadTagFixtures, tagFixtures } from '../server/seed/tags'
 
 const count = async (t: TestDatabase, query: string) =>
   Number(((await t.db.execute(sql.raw(query))).rows[0] as { n: string }).n)
@@ -65,5 +66,23 @@ describe('fixtureId', () => {
     expect(fixtureId('ada')).toBe(fixtureId('ada'))
     expect(fixtureId('ada')).not.toBe(fixtureId('ben'))
     expect(fixtureId('ada')).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+  })
+})
+
+describe('tag fixtures', () => {
+  it('load once, link items of the same space, and change nothing the second time', async () => {
+    const t = await createTestDatabase()
+    try {
+      await t.db.transaction((tx) => loadFixtures(tx))
+      const first = await t.db.transaction((tx) => loadTagFixtures(tx))
+      expect(first).toEqual({ tags: tagFixtures.length, links: linkFixtures.length, events: tagFixtures.length + linkFixtures.length })
+      const second = await t.db.transaction((tx) => loadTagFixtures(tx))
+      expect(second).toEqual({ tags: 0, links: 0, events: 0 })
+      expect(await count(t, `select count(*) as n from events where type in ('tag.created', 'item.tagged')`)).toBe(first.events)
+      // The database itself refuses a link across spaces, so the count below is also a check on the fixtures.
+      expect(await count(t, 'select count(*) as n from item_tags')).toBe(linkFixtures.length)
+    } finally {
+      await t.drop()
+    }
   })
 })

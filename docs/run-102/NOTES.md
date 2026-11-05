@@ -29,7 +29,7 @@ One versioned `/api/v1`, defined once as Zod contracts, carries spaces, actors, 
 ## 4. Added
 Layers `core`, `workspace`, `items`, `events`. `GET /spaces/:id/events` pages by event id (`next_cursor` is passed back as `?after=`), not by an opaque cursor, because the id is already a stable order. Route contract, error shape, module registry, OpenAPI builder, and `GET /api/v1`, `/health`, `/openapi.json`.
 
-Tables (task 2): `spaces`, `actors`, `memberships`, `columns`, `items`, `events`, as in the brief. Fixtures: 4 actors, 5 spaces, 20 columns, 19 items, 24 events. Additions to the brief's model:
+Tables (task 2): `spaces`, `actors`, `memberships`, `columns`, `items`, `events`, as in the brief. Fixtures: 4 actors, 5 spaces, 20 columns, 19 items, 24 events, plus (in `server/seed/tags.ts`, loaded by `seed.ts` only) 4 tags, 6 item links and 10 events. Additions to the brief's model:
 - `columns` has a unique `(space_id, name)`. `memberships` has no `id` and no `updated_at`, because the pair is its key.
 - Every space has a column for each of the four states, so the default column for a new item always exists.
 - `items.lead_id` is `ON DELETE SET NULL`.
@@ -48,7 +48,7 @@ Nuxt 4.6.3, Zod 4.6.7, Vitest 5.1.0, Drizzle ORM 0.45.4 and drizzle-kit 0.31.11 
 
 ## 7. Numbers
 - Test suite: 203 tests in about 30 seconds once the API-only test server is built (about 20 seconds more when sources changed). A full `nuxt build` for comparison took 1.5 to 3.5 minutes.
-- Final suite: 250 tests in 20 files (240 in 19 before the tag link fix), about 80 seconds in total including the removal builds (three extra Nitro builds of about 15 seconds each, cached afterwards).
+- Final suite: 251 tests in 20 files (240 in 19 before the tag link fix), about 80 seconds in total including the removal builds (three extra Nitro builds of about 15 seconds each, cached afterwards).
 - Contract test: 17 tests and 88 (route, status) pairs, each called over HTTP and checked against the document.
 - 16 paths and 20 operations in `GET /api/v1/openapi.json`.
 
@@ -108,6 +108,11 @@ Design choices: `tags` reads items only through `getItem` of the items layer. De
 
 ## After review: the tag link catch
 `setLink` caught every database error and answered 404, so a lost connection would have looked like "tag not found". It now answers 404 only for a foreign key violation (`23503`) on `item_tags_item_same_space_fk` or `item_tags_tag_same_space_fk`, which means the item or tag was deleted between the checks and the write (the checks run before the space lock). Everything else is rethrown with its real status. Behavior fix, contract unchanged: the freeze snapshot did not change. `23505` cannot happen there (`ON CONFLICT DO NOTHING`, and the primary key is the only unique constraint). New tests: `layers/tags/tests/link-errors.test.ts` (10), including a deterministic delete-during-lock race on two real connections. With the old catch, the 8 tests for other failures fail. The suite is now 250 tests in 20 files.
+
+## Before run-103: smoke script and tag fixtures
+- `make seed RUN=102` now also seeds 4 tags and 6 links (dinner: urgent, shopping, kitchen; studio: launch) with their events, in a separate file so the core seed does not depend on the `tags` layer. A second run inserts nothing. The HTTP test database does not get them, so existing tests are unchanged.
+- `scripts/openapi-smoke.mjs` now calls every GET route with real data (including `GET /tags/{id}/items`, which it used to skip). With `--write` (`pnpm contract:smoke:write`) it also runs one round trip of every write verb on data it creates and deletes itself: POST tag and item, PATCH (200 and a stale 409), move, PUT and DELETE link, DELETE item and tag, then checks the event log shows exactly those eight events in order. Each call is checked against the status and schema in the OpenAPI document. The data is removed, but the events stay in the append-only log, so use `--write` on a development database only. Done-when 12 is now met for every verb by a client outside Nuxt.
+- Suite: 251 tests in 20 files.
 
 ## Working notes
 
