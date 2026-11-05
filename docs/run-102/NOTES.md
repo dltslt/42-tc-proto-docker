@@ -49,7 +49,7 @@ Nuxt 4.6.3, Zod 4.6.7, Vitest 5.1.0, Drizzle ORM 0.45.4 and drizzle-kit 0.31.11 
 ## 7. Numbers
 - Test suite: 203 tests in about 30 seconds once the API-only test server is built (about 20 seconds more when sources changed). A full `nuxt build` for comparison took 1.5 to 3.5 minutes.
 - Final suite: 240 tests in 19 files, about 80 seconds in total including the removal builds (three extra Nitro builds of about 15 seconds each, cached afterwards).
-- Contract test: 17 tests and 91 (route, status) pairs, each called over HTTP and checked against the document.
+- Contract test: 17 tests and 88 (route, status) pairs, each called over HTTP and checked against the document.
 - 16 paths and 20 operations in `GET /api/v1/openapi.json`.
 
 ## Decisions beyond the brief
