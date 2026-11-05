@@ -11,6 +11,7 @@ All routes live under `/api/v1`. Route files are in `layers/<name>/server/api/v1
 | `GET /api/v1/actors` | workspace | open | Actors, so a client can choose who to act as |
 | `GET /api/v1/spaces` | workspace | needed | Only the spaces the caller is a member of |
 | `GET /api/v1/spaces/:id/columns` | workspace | needed | Columns of a space in board order (404 unknown space, 403 not a member) |
+| `GET /api/v1/spaces/:id/events` | events | needed | The event log of a space, oldest first, with filters and `?after=<event id>` (404 unknown space, 403 not a member) |
 | `GET /api/v1/items?space_id=` | items | needed | Items of a space, with filters, search, sorting and cursor pagination |
 | `GET /api/v1/items/:id` | items | needed | One item (404 unknown, 403 if it lives in a space the caller is not in) |
 | `POST /api/v1/items` | items | needed | Create an item: `space_id` and `title` are enough. 201 |
@@ -24,6 +25,9 @@ Any other `/api/v1` request gets the error shape: 405 with an `Allow` header whe
 Every list answers `{ "data": [...], "next_cursor": "..." | null }`. Pass `next_cursor` back as `?cursor=` for the next page; `null` means the end. `?limit=` is 1 to 200 (default 50). The cursor is opaque and tied to the sort it came from.
 
 `GET /items` filters: `state`, `type`, `column_id`, `lead_id`, `parent_id` (an item id, or `null` for root items) and `q` (case-insensitive text in the title or description; `%` and `_` are plain characters). Sort with `?sort=position`, `-position`, `created_at` or `-created_at`; ties are broken by id. Discarded items are returned like any other: hiding them is the client's choice.
+
+### Event log
+`GET /spaces/:id/events` answers `{ data, next_cursor }` like other lists, but pages by event id instead of an opaque cursor. Events come oldest first. `?after=<id>` returns exactly the events with a bigger id, and `next_cursor` (the last id on the page, or `null`) goes back as `?after=`. A client that polls keeps the last id it saw and asks for what is new. Filters: `type`, `target_kind`, `target_id`. Events with no space are not reachable here. `changes` holds `{ field: { from, to } }` for the fields that changed; `version` is not part of it.
 
 ### Writes
 Every write is one transaction that saves the change **and its event** together. `layers/items/server/services/write.ts` holds the rules; the route files only validate and call it.
@@ -102,6 +106,10 @@ Adding a migration after changing a schema file: `docker compose exec run-102 pn
 - `services/read.ts`: list and get.
 - `lib/placement.ts`: pure order-key helpers, including the repair of tied keys.
 - `schemas.ts`, `contracts.ts`, `api/v1/items*`: the request and response schemas, the contracts, and the routes.
+
+## Layer code (`layers/events/server/`)
+- `services/record.ts`: `recordEvent` and the change helpers other layers call. `services/read.ts`: the log read.
+- `schemas.ts`, `contracts.ts`, `api/v1/spaces/[id]/events.get.ts`: the schema, the contract and the route.
 
 ## Tests
 `pnpm test` runs Vitest inside the container; the dev server does not need to be running.

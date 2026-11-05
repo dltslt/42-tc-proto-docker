@@ -12,8 +12,8 @@
 - [x] Task 2: Database
 - [x] Task 3: Identity and read path
 - [x] Task 4: Write path
-- [ ] Task 5: Event log (next)
-- [ ] Tasks 6 to 7: see the brief
+- [x] Task 5: Event log
+- [ ] Tasks 6 to 7 (next: 6): see the brief
 
 Tasks are built one at a time, and each is reviewed before the next one starts.
 
@@ -24,7 +24,7 @@ Tasks are built one at a time, and each is reviewed before the next one starts.
 - **Which tool generates OpenAPI from Zod?** Zod 4's own `z.toJSONSchema` with `target: 'openapi-3.0'`. No extra package; about 80 lines assemble the document from the route contracts.
 
 ## 4. Added
-Layers `core`, `workspace`, `items`, `events`. Route contract, error shape, module registry, OpenAPI builder, and `GET /api/v1`, `/health`, `/openapi.json`.
+Layers `core`, `workspace`, `items`, `events`. `GET /spaces/:id/events` pages by event id (`next_cursor` is passed back as `?after=`), not by an opaque cursor, because the id is already a stable order. Route contract, error shape, module registry, OpenAPI builder, and `GET /api/v1`, `/health`, `/openapi.json`.
 
 Tables (task 2): `spaces`, `actors`, `memberships`, `columns`, `items`, `events`, as in the brief. Fixtures: 4 actors, 5 spaces, 20 columns, 19 items, 24 events. Additions to the brief's model:
 - `columns` has a unique `(space_id, name)`. `memberships` has no `id` and no `updated_at`, because the pair is its key.
