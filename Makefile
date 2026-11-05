@@ -101,5 +101,11 @@ sh: ## Open a shell inside a prototype container (Usage: make sh RUN=100 or make
 	docker compose exec "$$run" sh
 
 db-reset: ## Wipe databases and restart shared engines with fresh volumes
-	docker compose down -v
-	docker compose up -d postgres mongo
+	@echo "==> Stopping and removing database containers..."
+	@docker compose stop postgres mongo
+	@docker compose rm -f -v postgres mongo
+	@echo "==> Removing database volumes only..."
+	@proj=$$(docker compose config --format json 2>/dev/null | jq -r .name 2>/dev/null || echo "tc-proto-docker"); \
+	docker volume rm -f "$${proj}_postgres_data" "$${proj}_mongo_data" 2>/dev/null || true
+	@echo "==> Restarting database containers with clean volumes..."
+	@docker compose up -d postgres mongo
