@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { defineContract, errorStatuses, validateInput } from '../server/lib/contract'
 import { ApiError, ErrorBodySchema, notFound, toErrorResponse } from '../server/lib/errors'
 import { buildOpenApi } from '../server/lib/openapi'
-import { allRoutes, listModules, registerModule, resetRegistry } from '../server/lib/registry'
+import { allRoutes, listModules, matchRoute, registerModule, resetRegistry } from '../server/lib/registry'
 
 const getThing = defineContract({
   method: 'get',
@@ -121,5 +121,23 @@ describe('OpenAPI', () => {
   it('lists 400 only for routes that take input', () => {
     expect(errorStatuses(createThing)).toEqual([400])
     expect(errorStatuses({ ...createThing, body: undefined })).toEqual([])
+  })
+})
+
+describe('matchRoute', () => {
+  beforeEach(resetRegistry)
+
+  it('matches method and path, including path parameters and a trailing slash', () => {
+    registerModule({ name: 'core', dependsOn: [], routes: [getThing, createThing] })
+    expect(matchRoute('GET', '/things/abc')).toBe(getThing)
+    expect(matchRoute('get', '/things/abc/')).toBe(getThing)
+    expect(matchRoute('POST', '/things')).toBe(createThing)
+  })
+
+  it('rejects the wrong method, a missing parameter and an unknown path', () => {
+    registerModule({ name: 'core', dependsOn: [], routes: [getThing, createThing] })
+    expect(matchRoute('DELETE', '/things/abc')).toBeUndefined()
+    expect(matchRoute('GET', '/things/')).toBeUndefined()
+    expect(matchRoute('GET', '/other')).toBeUndefined()
   })
 })

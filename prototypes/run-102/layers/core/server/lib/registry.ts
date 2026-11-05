@@ -52,3 +52,13 @@ export function listModules(): ModuleInfo[] {
 export function allRoutes(): RouteContract[] {
   return [...modules.values()].flatMap((mod) => mod.routes)
 }
+
+// Does a request match a registered contract? Contract paths use `{id}` for a path parameter.
+export function matchRoute(method: string, pathname: string): RouteContract | undefined {
+  const clean = pathname.replace(/\/+$/, '') || '/'
+  return allRoutes().find((route) => {
+    if (route.method !== method.toLowerCase()) return false
+    const pattern = route.path.replace(/\/+$/, '').replace(/\{[^/}]+\}/g, '[^/]+') || '/'
+    return new RegExp(`^${pattern.replace(/[.]/g, '\\.')}$`).test(clean)
+  })
+}

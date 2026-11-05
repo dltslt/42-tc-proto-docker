@@ -2,6 +2,9 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
+  // Layers, lowest first. Each is a folder with its own routes and plugins, merged into this app.
+  // Removing a layer means removing its line here and its folder.
+  extends: ['./layers/core', './layers/workspace', './layers/items', './layers/events'],
   vite: {
     server: {
       watch: {
