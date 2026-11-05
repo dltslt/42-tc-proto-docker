@@ -72,6 +72,13 @@ Nuxt 4.6.3, Zod 4.6.7, Vitest 5.1.0, Drizzle ORM 0.45.4 and drizzle-kit 0.31.11 
 - **`nitropack` is a dev dependency,** pinned to the version Nuxt already uses (2.13.5), because pnpm does not let the project import a package that only Nuxt depends on.
 - **Not tested by this server:** the Vue page. It is checked in a browser instead.
 
+- **`events` moved below `items`:** `core ← workspace ← events ← items`. The brief had `events` above `items`, but `items` calls the event writer, and a layer may only build on layers below it. The brief now says so, and `events` also owns the writer (`recordEvent`), not `core`. `core` keeps the registry of event types.
+- **One writer at a time per space.** Every write takes a transaction-level advisory lock on its space first (`lockSpace`, workspace layer). The brief asked for the lock only on parent changes. A lock on every write also keeps event ids in commit order within a space (needed for `?after=` in task 5, otherwise a slower transaction could commit an event with a smaller id after a reader had already moved past it), and rules out deadlocks. The cost is that writes in one space queue up; reads and other spaces are unaffected.
+- **Unknown event types fail loudly,** like unknown actions: `recordEvent` throws if no layer registered the type.
+- **`items.parent_id <> id`** is now a CHECK constraint (migration `0002`). Longer cycles are prevented by the move service under the space lock.
+- **A 409 version conflict carries the stored item** in `error.current`. Added to the shared error body; it appears only on those 409s.
+- **Database errors that slip past the services** are answered as 400 (bad reference, broken check) or 409 (duplicate) instead of 500. The services still check first, for clear messages.
+
 ## Working notes
 - Adding a package: `docker compose exec run-102 pnpm add <package>`. If pnpm refuses with "Unexpected store location", add `--store-dir /root/.local/share/pnpm/store/v11` (the location depends on how `node_modules` was installed).
 - Files written by a command in the container belong to root on the host. After `pnpm add`, run `chown` inside the container with the host user's id, or later edits on the host fail.

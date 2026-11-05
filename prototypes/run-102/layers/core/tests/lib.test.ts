@@ -2,11 +2,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineContract, errorStatuses, validateInput } from '../server/lib/contract'
-import { ApiError, ErrorBodySchema, notFound, toErrorResponse } from '../server/lib/errors'
+import { ApiError, conflict, ErrorBodySchema, notFound, toErrorResponse } from '../server/lib/errors'
 import { buildOpenApi } from '../server/lib/openapi'
 import { decodeCursor, encodeCursor, toPage } from '../server/lib/pagination'
 import { authorize, can } from '../server/lib/policy'
-import { allowedMethods, allRoutes, listModules, matchRoute, registerModule, resetRegistry } from '../server/lib/registry'
+import { allEventTypes, allowedMethods, allRoutes, listModules, matchRoute, registerModule, resetRegistry } from '../server/lib/registry'
 
 const getThing = defineContract({
   method: 'get',
@@ -208,5 +208,47 @@ describe('pagination', () => {
     expect(first.data).toEqual(['a', 'b'])
     expect(decodeCursor(first.next_cursor!, 'position')).toEqual(['b', '1'])
     expect(toPage(rows.slice(0, 2), 2, 'position', (r) => r.key, cursorOf).next_cursor).toBeNull()
+  })
+})
+
+describe('event types', () => {
+  beforeEach(resetRegistry)
+
+  it('are collected from every layer, and listed per layer', () => {
+    registerModule({ name: 'core', dependsOn: [], routes: [] })
+    registerModule({ name: 'items', dependsOn: ['core'], routes: [], eventTypes: ['item.created', 'item.moved'] })
+    expect(allEventTypes()).toEqual(['item.created', 'item.moved'])
+    expect(listModules().map((m) => m.event_types)).toEqual([[], ['item.created', 'item.moved']])
+  })
+})
+
+describe('database errors that slip past the services', () => {
+  const pg = (code: string, constraint: string) => Object.assign(new Error('driver'), { cause: { code, constraint } })
+
+  it('a bad reference or a broken check is the caller\'s mistake (400), a duplicate is a conflict (409)', () => {
+    expect(toErrorResponse(pg('23503', 'items_parent_same_space_fk')).status).toBe(400)
+    expect(toErrorResponse(pg('23514', 'items_type_check')).status).toBe(400)
+    const dup = toErrorResponse(pg('23505', 'columns_space_name_unique'))
+    expect(dup.status).toBe(409)
+    expect(dup.body.error.message).toContain('columns_space_name_unique')
+  })
+
+  it('anything else is still a plain 500', () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(toErrorResponse(pg('XX000', 'x')).status).toBe(500)
+    log.mockRestore()
+  })
+})
+
+describe('conflict with the current item', () => {
+  it('carries the stored item in the error body', () => {
+    const { status, body } = toErrorResponse(conflict('Edited by someone else', { id: 'x', version: 3 }))
+    expect(status).toBe(409)
+    expect(body.error.current).toEqual({ id: 'x', version: 3 })
+    expect(ErrorBodySchema.safeParse(body).success).toBe(true)
+  })
+
+  it('leaves `current` out when there is none', () => {
+    expect('current' in toErrorResponse(conflict('Taken')).body.error).toBe(false)
   })
 })

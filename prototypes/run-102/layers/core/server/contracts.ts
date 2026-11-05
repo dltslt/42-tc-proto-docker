@@ -17,6 +17,7 @@ export const indexContract = defineContract({
         missing_dependencies: z.array(z.string()),
         route_count: z.number().int(),
         actions: z.array(z.string()),
+        event_types: z.array(z.string()),
       }),
     ),
   }),

@@ -1,0 +1,1 @@
+ALTER TABLE "items" ADD CONSTRAINT "items_not_own_parent" CHECK ("items"."parent_id" <> "items"."id");

@@ -9,6 +9,9 @@ export interface ModuleDefinition {
   routes: RouteContract[]
   // Permission names this layer checks with can(), like "item.read". Each layer registers its own.
   actions?: string[]
+  // Event types this layer writes, like "item.created". Each layer registers its own, and the event
+  // writer refuses a type nobody registered.
+  eventTypes?: string[]
 }
 
 export interface ModuleInfo {
@@ -17,6 +20,7 @@ export interface ModuleInfo {
   missing_dependencies: string[]
   route_count: number
   actions: string[]
+  event_types: string[]
 }
 
 // Module-level state: one registry per server process, filled by the layers' Nitro plugins.
@@ -50,11 +54,16 @@ export function listModules(): ModuleInfo[] {
       missing_dependencies: mod.dependsOn.filter((dep) => !modules.has(dep)),
       route_count: mod.routes.length,
       actions: mod.actions ?? [],
+      event_types: mod.eventTypes ?? [],
     }))
 }
 
 export function allRoutes(): RouteContract[] {
   return [...modules.values()].flatMap((mod) => mod.routes)
+}
+
+export function allEventTypes(): string[] {
+  return [...modules.values()].flatMap((mod) => mod.eventTypes ?? [])
 }
 
 export function allActions(): string[] {

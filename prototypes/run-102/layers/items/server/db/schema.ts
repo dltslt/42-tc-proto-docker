@@ -30,6 +30,8 @@ export const items = pgTable(
     check('items_type_check', oneOf(t.type, ITEM_TYPES)),
     check('items_state_check', oneOf(t.state, STATES)),
     check('items_version_check', sql`${t.version} >= 1`),
+    // The smallest possible cycle. Longer cycles are prevented by the move service, under the space lock.
+    check('items_not_own_parent', sql`${t.parentId} <> ${t.id}`),
     // Target of foreign keys from other layers (tags, comments, ...) that must stay in the same space.
     unique('items_space_id_unique').on(t.spaceId, t.id),
     // The parent must be in the same space. A null parent_id skips the check (root items).

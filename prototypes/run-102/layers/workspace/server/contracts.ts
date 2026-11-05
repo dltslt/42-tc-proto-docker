@@ -41,3 +41,5 @@ export const listColumnsContract = defineContract({
 export const workspaceContracts = [listActorsContract, listSpacesContract, listColumnsContract]
 // Permission names this layer checks with can().
 export const workspaceActions = ['space.list', 'column.list']
+// Event types this layer writes. v1 has no route that creates a space; the seed writes this one.
+export const workspaceEventTypes = ['space.created']
