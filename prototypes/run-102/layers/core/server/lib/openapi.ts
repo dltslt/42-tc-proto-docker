@@ -11,6 +11,7 @@ const ERROR_TEXT: Record<number, string> = {
   401: 'No actor',
   403: 'Not allowed or wrong space',
   404: 'Not found',
+  405: 'Method not allowed',
   409: 'Conflict',
 }
 

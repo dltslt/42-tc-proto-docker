@@ -35,7 +35,7 @@ Nuxt 4.6.3, Zod 4.6.7, Vitest 5.1.0. Drizzle is added in task 2.
 ## Decisions beyond the brief
 - **The middleware, not a catch-all route, owns unknown paths.** A catch-all route did not catch a wrong method on a real path: Nitro's router picked the real path and fell through to the page renderer, so `POST /api/v1/health` returned the HTML welcome page with a 200. The middleware checks every `/api/v1` request against the registry instead. Side effect: a route file without a contract is unreachable, so every route must have a contract.
 - **Routes return only what their contract says.** `defineRoute` parses the handler's result with the response schema. This strips extra fields and turns a mismatch into a 500.
-- **Wrong method gives 404, not 405.** The brief lists only 400, 401, 403, 404 and 409.
+- **Wrong method gives 405 with an `Allow` header.** The brief first listed only 400, 401, 403, 404 and 409; 405 was added at review, because it tells a client the path exists. Unknown paths stay 404.
 
 ## Working notes
 - Adding a package: `docker compose exec run-102 pnpm add --store-dir /root/.local/share/pnpm/store/v11 <package>`. Without `--store-dir`, pnpm refuses with "Unexpected store location".

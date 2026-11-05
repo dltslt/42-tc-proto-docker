@@ -1,5 +1,5 @@
 // Pure TypeScript, no framework imports: the one error shape every route returns.
-// Shape: { "error": { "code", "message", "fields" } } with status 400, 401, 403, 404 or 409.
+// Shape: { "error": { "code", "message", "fields" } } with status 400, 401, 403, 404, 405 or 409.
 import { z } from 'zod'
 
 export type ErrorCode =
@@ -7,6 +7,7 @@ export type ErrorCode =
   | 'unauthenticated' // 401
   | 'forbidden' // 403
   | 'not_found' // 404
+  | 'method_not_allowed' // 405
   | 'conflict' // 409
   | 'internal' // 500, only for server bugs, never for bad input
 
@@ -15,6 +16,7 @@ const CODE_BY_STATUS: Record<number, ErrorCode> = {
   401: 'unauthenticated',
   403: 'forbidden',
   404: 'not_found',
+  405: 'method_not_allowed',
   409: 'conflict',
 }
 
@@ -34,7 +36,7 @@ export type ErrorBody = z.infer<typeof ErrorBodySchema>
 // Services and routes throw this. The route wrapper turns it into the error shape.
 export class ApiError extends Error {
   constructor(
-    readonly status: 400 | 401 | 403 | 404 | 409,
+    readonly status: 400 | 401 | 403 | 404 | 405 | 409,
     readonly code: ErrorCode,
     message: string,
     readonly fields: ErrorFields = {},
@@ -50,6 +52,7 @@ export const unauthenticated = (message = 'No actor: send the X-Actor-Id header'
   new ApiError(401, 'unauthenticated', message)
 export const forbidden = (message = 'Not allowed') => new ApiError(403, 'forbidden', message)
 export const notFound = (message = 'Not found') => new ApiError(404, 'not_found', message)
+export const methodNotAllowed = (message: string) => new ApiError(405, 'method_not_allowed', message)
 export const conflict = (message: string) => new ApiError(409, 'conflict', message)
 
 // Zod reports problems as a list of issues with a path. Group them by dotted path under a prefix.

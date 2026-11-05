@@ -53,12 +53,20 @@ export function allRoutes(): RouteContract[] {
   return [...modules.values()].flatMap((mod) => mod.routes)
 }
 
-// Does a request match a registered contract? Contract paths use `{id}` for a path parameter.
-export function matchRoute(method: string, pathname: string): RouteContract | undefined {
+// Does a contract path (`/items/{id}`) match a request path? A trailing slash is ignored.
+function pathMatches(route: RouteContract, pathname: string): boolean {
   const clean = pathname.replace(/\/+$/, '') || '/'
-  return allRoutes().find((route) => {
-    if (route.method !== method.toLowerCase()) return false
-    const pattern = route.path.replace(/\/+$/, '').replace(/\{[^/}]+\}/g, '[^/]+') || '/'
-    return new RegExp(`^${pattern.replace(/[.]/g, '\\.')}$`).test(clean)
-  })
+  const pattern = route.path.replace(/\/+$/, '').replace(/\{[^/}]+\}/g, '[^/]+') || '/'
+  return new RegExp(`^${pattern.replace(/[.]/g, '\\.')}$`).test(clean)
+}
+
+// The contract for this method and path, if one is registered.
+export function matchRoute(method: string, pathname: string): RouteContract | undefined {
+  return allRoutes().find((route) => route.method === method.toLowerCase() && pathMatches(route, pathname))
+}
+
+// Methods registered for this path, upper case. Non-empty with no `matchRoute` means "wrong method".
+export function allowedMethods(pathname: string): string[] {
+  const methods = allRoutes().filter((route) => pathMatches(route, pathname)).map((route) => route.method.toUpperCase())
+  return [...new Set(methods)].sort()
 }

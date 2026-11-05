@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { defineContract, errorStatuses, validateInput } from '../server/lib/contract'
 import { ApiError, ErrorBodySchema, notFound, toErrorResponse } from '../server/lib/errors'
 import { buildOpenApi } from '../server/lib/openapi'
-import { allRoutes, listModules, matchRoute, registerModule, resetRegistry } from '../server/lib/registry'
+import { allowedMethods, allRoutes, listModules, matchRoute, registerModule, resetRegistry } from '../server/lib/registry'
 
 const getThing = defineContract({
   method: 'get',
@@ -139,5 +139,17 @@ describe('matchRoute', () => {
     expect(matchRoute('DELETE', '/things/abc')).toBeUndefined()
     expect(matchRoute('GET', '/things/')).toBeUndefined()
     expect(matchRoute('GET', '/other')).toBeUndefined()
+  })
+})
+
+describe('allowedMethods', () => {
+  beforeEach(resetRegistry)
+
+  it('lists the methods registered for a path, so a caller can tell "wrong method" from "no such path"', () => {
+    const patchThing = { ...getThing, method: 'patch' as const }
+    registerModule({ name: 'core', dependsOn: [], routes: [getThing, patchThing, createThing] })
+    expect(allowedMethods('/things/abc')).toEqual(['GET', 'PATCH'])
+    expect(allowedMethods('/things')).toEqual(['POST'])
+    expect(allowedMethods('/other')).toEqual([])
   })
 })
