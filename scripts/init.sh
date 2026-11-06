@@ -85,9 +85,7 @@ if [[ " $TARGETS " =~ [[:space:]]template[[:space:]] ]]; then
   echo "======================================================================" >&2
 
   proceed="n"
-  if [[ "${FORCE:-0}" == "1" ]]; then
-    proceed="y"
-  elif [[ -e /dev/tty && -r /dev/tty ]]; then
+  if [[ -e /dev/tty && -r /dev/tty ]]; then
     read -r -p "Do you want to continue anyway? [y/N]: " confirm < /dev/tty || confirm="n"
     if [[ "$confirm" =~ ^[yY]([eE][sS])?$ ]]; then
       proceed="y"
@@ -98,7 +96,7 @@ if [[ " $TARGETS " =~ [[:space:]]template[[:space:]] ]]; then
       proceed="y"
     fi
   else
-    echo "Notice: Non-interactive environment. Skipping 'template' (set FORCE=1 to override)." >&2
+    echo "Notice: Non-interactive environment. Skipping 'template'." >&2
   fi
 
   if [[ "$proceed" != "y" ]]; then
@@ -138,13 +136,70 @@ if [[ $retries -le 0 ]]; then
 fi
 echo "==> PostgreSQL is ready."
 
-# 5. Boot and seed each target prototype
+# 5. Determine existing virtual stores on pnpm_store volume
+COMPOSE_PROJECT=$(docker compose config --format json 2>/dev/null | jq -r .name 2>/dev/null || echo "tc-proto-docker")
+PNPM_VOLUME="${COMPOSE_PROJECT}_pnpm_store"
+
+EXISTING_STORES=""
+if docker volume inspect "$PNPM_VOLUME" >/dev/null 2>&1; then
+  EXISTING_STORES=$(docker run --rm -v "$PNPM_VOLUME:/p" node:22-slim sh -c 'ls -d /p/*/pnpm 2>/dev/null | sed -e "s#/p/##" -e "s#/pnpm##"' 2>/dev/null || true)
+fi
+
+# 6. Boot and seed each target prototype
 for run in $TARGETS; do
   proto_dir="prototypes/$run"
+  if [[ "$run" == "template" ]]; then
+    proto_dir="prototypes/template"
+  fi
 
   if [[ ! -d "$proto_dir" ]]; then
     echo "==> Skipping $run: directory '$proto_dir' does not exist."
     continue
+  fi
+
+  # Guard 1: Skip incomplete or empty runs (missing package.json or nuxt.config.ts)
+  if [[ ! -f "$proto_dir/package.json" || ! -f "$proto_dir/nuxt.config.ts" ]]; then
+    echo "==> Skipping $run: incomplete prototype (missing package.json or nuxt.config.ts)."
+    continue
+  fi
+
+  # Guard 2: Skip if already initialized (virtual store present and DB seeded)
+  store_exists=0
+  if echo " $EXISTING_STORES " | grep -qw "$run"; then
+    store_exists=1
+  fi
+
+  local_db_name="proto_${run//-/_}"
+  needs_db=0
+  db_seeded=0
+  table_count=0
+
+  if grep -qE '"(pg|postgres|kysely|drizzle-orm)"' "$proto_dir/package.json" 2>/dev/null; then
+    needs_db=1
+    # Query PostgreSQL for table count in public schema
+    table_count=$(docker compose exec -T postgres psql -U "${DB_USER:-lerch}" -d "$local_db_name" -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';" 2>/dev/null || echo "0")
+    if [[ "$table_count" =~ ^[0-9]+$ ]] && [[ "$table_count" -gt 0 ]]; then
+      db_seeded=1
+    fi
+  elif grep -qE '"mongodb"' "$proto_dir/package.json" 2>/dev/null; then
+    needs_db=1
+    col_count=$(docker compose exec -T mongo mongosh -u "${DB_USER:-lerch}" -p "${DB_PASSWORD:-lerch}" --authenticationDatabase admin --quiet --eval "db.getSiblingDB('$local_db_name').getCollectionNames().length" 2>/dev/null || echo "0")
+    if [[ "$col_count" =~ ^[0-9]+$ ]] && [[ "$col_count" -gt 0 ]]; then
+      db_seeded=1
+    fi
+  fi
+
+  if [[ "$store_exists" -eq 1 ]]; then
+    if [[ "$run" == "template" ]]; then
+      echo "==> template: already initialized (virtual store present). Skipping."
+      continue
+    elif [[ "$needs_db" -eq 1 && "$db_seeded" -eq 1 ]]; then
+      echo "==> $run: already initialized (virtual store present, DB seeded with $table_count tables). Skipping."
+      continue
+    elif [[ "$needs_db" -eq 0 ]]; then
+      echo "==> $run: already initialized (virtual store present, in-memory DB). Skipping."
+      continue
+    fi
   fi
 
   echo "==> Booting $run container..."
@@ -166,7 +221,7 @@ for run in $TARGETS; do
   docker compose exec -T "$run" pnpm run db:seed
 done
 
-# 6. Lifecycle cleanup
+# 7. Lifecycle cleanup
 if [[ "$KEEP_UP" == "1" ]] || [[ "$KEEP_UP" == "true" ]] || [[ "$KEEP_UP" == "--up" ]]; then
   echo "==> Initialization complete. Target containers are running."
 else
