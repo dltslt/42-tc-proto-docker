@@ -77,6 +77,36 @@ TARGETS=$(parse_targets "$TARGET_ARG")
 # shellcheck disable=SC2086
 TARGETS=$(echo $TARGETS | xargs -n1 2>/dev/null | sort -u | xargs)
 
+# Guard: warn if template was requested
+if [[ " $TARGETS " =~ [[:space:]]template[[:space:]] ]]; then
+  echo "======================================================================" >&2
+  echo "WARNING: 'template' is the baseline app and is not meant to be run" >&2
+  echo "or initialized directly as a prototype (see AGENTS.md §1)." >&2
+  echo "======================================================================" >&2
+
+  proceed="n"
+  if [[ "${FORCE:-0}" == "1" ]]; then
+    proceed="y"
+  elif [[ -e /dev/tty && -r /dev/tty ]]; then
+    read -r -p "Do you want to continue anyway? [y/N]: " confirm < /dev/tty || confirm="n"
+    if [[ "$confirm" =~ ^[yY]([eE][sS])?$ ]]; then
+      proceed="y"
+    fi
+  elif [[ -t 0 ]]; then
+    read -r -p "Do you want to continue anyway? [y/N]: " confirm || confirm="n"
+    if [[ "$confirm" =~ ^[yY]([eE][sS])?$ ]]; then
+      proceed="y"
+    fi
+  else
+    echo "Notice: Non-interactive environment. Skipping 'template' (set FORCE=1 to override)." >&2
+  fi
+
+  if [[ "$proceed" != "y" ]]; then
+    echo "==> Excluding 'template' from initialization."
+    TARGETS=$(echo "$TARGETS" | tr ' ' '\n' | grep -v '^template$' | xargs || true)
+  fi
+fi
+
 if [[ -z "$TARGETS" ]]; then
   echo "==> Notice: No prototype runs found or specified. Nothing to seed."
   exit 0
