@@ -163,41 +163,39 @@ for run in $TARGETS; do
     continue
   fi
 
-  # Guard 2: Skip if already initialized (virtual store present and DB seeded)
+  # Guard 2: Skip if already initialized (virtual store present and DB seeded if required)
   store_exists=0
   if echo " $EXISTING_STORES " | grep -qw "$run"; then
     store_exists=1
   fi
 
   local_db_name="proto_${run//-/_}"
-  needs_db=0
-  db_seeded=0
+  needs_postgres=0
   table_count=0
 
-  if grep -qE '"(pg|postgres|kysely|drizzle-orm)"' "$proto_dir/package.json" 2>/dev/null; then
-    needs_db=1
-    # Query PostgreSQL for table count in public schema
+  # Check platform registration: 01-create-databases.sql is the source of truth for Postgres requirements
+  if grep -qE "CREATE DATABASE\s+[\"']?$local_db_name[\"']?;" docker/postgres/init/01-create-databases.sql 2>/dev/null; then
+    needs_postgres=1
+    # Check if database exists in running PostgreSQL container; create if missing
+    db_exists=$(docker compose exec -T postgres psql -U "${DB_USER:-lerch}" -d default_db -t -A -c "SELECT 1 FROM pg_database WHERE datname='$local_db_name';" 2>/dev/null || echo "0")
+    if [[ "$db_exists" != "1" ]]; then
+      echo "==> Creating PostgreSQL database '$local_db_name' for $run..."
+      docker compose exec -T postgres psql -U "${DB_USER:-lerch}" -d default_db -c "CREATE DATABASE \"$local_db_name\";" >/dev/null
+    fi
+
+    # Query public schema table count
     table_count=$(docker compose exec -T postgres psql -U "${DB_USER:-lerch}" -d "$local_db_name" -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';" 2>/dev/null || echo "0")
-    if [[ "$table_count" =~ ^[0-9]+$ ]] && [[ "$table_count" -gt 0 ]]; then
-      db_seeded=1
-    fi
-  elif grep -qE '"mongodb"' "$proto_dir/package.json" 2>/dev/null; then
-    needs_db=1
-    col_count=$(docker compose exec -T mongo mongosh -u "${DB_USER:-lerch}" -p "${DB_PASSWORD:-lerch}" --authenticationDatabase admin --quiet --eval "db.getSiblingDB('$local_db_name').getCollectionNames().length" 2>/dev/null || echo "0")
-    if [[ "$col_count" =~ ^[0-9]+$ ]] && [[ "$col_count" -gt 0 ]]; then
-      db_seeded=1
-    fi
   fi
 
   if [[ "$store_exists" -eq 1 ]]; then
     if [[ "$run" == "template" ]]; then
       echo "==> template: already initialized (virtual store present). Skipping."
       continue
-    elif [[ "$needs_db" -eq 1 && "$db_seeded" -eq 1 ]]; then
+    elif [[ "$needs_postgres" -eq 1 && "$table_count" =~ ^[0-9]+$ && "$table_count" -gt 0 ]]; then
       echo "==> $run: already initialized (virtual store present, DB seeded with $table_count tables). Skipping."
       continue
-    elif [[ "$needs_db" -eq 0 ]]; then
-      echo "==> $run: already initialized (virtual store present, in-memory DB). Skipping."
+    elif [[ "$needs_postgres" -eq 0 ]]; then
+      echo "==> $run: already initialized (virtual store present). Skipping."
       continue
     fi
   fi
