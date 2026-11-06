@@ -37,22 +37,14 @@ services:
   base-proto:
     volumes:
       - /app/.nuxt                # Anonymous volume (local build/type cache mask)
-      - type: volume
-        source: pnpm_store
-        target: /root/.local/share/pnpm/store
-        volume:
-          subpath: store          # Shared global pnpm CAS store
+      - pnpm_store:/pnpm_store    # Single shared named volume mount
 
   run-100:
     extends:
       service: base-proto
     volumes:
       - ./prototypes/run-100:/app # Host bind mount
-      - type: volume
-        source: pnpm_store
-        target: /app/node_modules
-        volume:
-          subpath: run-100/node_modules # Per-run dependency mask on shared volume
+      - /app/node_modules         # Anonymous volume (dependency mask: symlinks only)
 ```
 
 ### How the Linux VFS Mount Table Resolves This
@@ -63,8 +55,8 @@ In the Linux Virtual Filesystem (VFS), mounts are organized in a hierarchical tr
    The developer's host directory is mounted at `/app`. Any changes made in an IDE on the host immediately reflect inside `/app` in the container.
 2. **Anonymous Volume (`/app/.nuxt`)**:
    Docker mounts a container-local anonymous volume over `/app/.nuxt` for generated TypeScript declarations and Vite caches.
-3. **Named Volume Subpath (`pnpm_store` -> `/app/node_modules`)**:
-   Docker mounts an isolated directory (`run-100/node_modules`) from the shared `pnpm_store` volume directly over `/app/node_modules`.
+3. **Anonymous Volume Mask (`/app/node_modules`)**:
+   Docker mounts an anonymous volume directly over `/app/node_modules`. This masks the host directory, ensuring container-installed symlinks and root UID permissions do not pollute the developer's host workspace.
 
 ```text
 Host Filesystem                    Container VFS Hierarchy
@@ -74,104 +66,109 @@ Host Filesystem                    Container VFS Hierarchy
   ├── server/                        ├── server/
   ├── package.json                   ├── package.json
   ├── (host .nuxt)                   ├── .nuxt/         <-- MASKED! (Anonymous volume)
-  └── (host node_modules)            └── node_modules/  <-- MASKED!
-                                         (Overlaid by pnpm_store subpath
-                                          run-100/node_modules)
+  └── (host node_modules)            └── node_modules/  <-- MASKED! (Anonymous volume:
+                                                             symlinks to /pnpm_store)
 ```
-
-**Result**:
-- The container installs Linux ELF binaries into its isolated volume mount without polluting the host.
-- The host filesystem remains completely clean of container-generated root-owned files.
-- If the host runs `pnpm install` for local IDE typechecking, the host's `node_modules` remains completely separate from the container's `node_modules`.
 
 ---
 
-## 3. Storage Efficiency: pnpm Content-Addressable Storage (CAS) & `EXDEV`
+## 3. Storage Architecture: pnpm Three-Layer Model & `EXDEV` Mechanics
 
-A standard Nuxt 4 prototype installation with Tailwind and database drivers contains ~40,000 files and weighs ~350MB. If 14 prototypes each maintained duplicate `node_modules` copies, the repository would consume over 5 GB of disk space and require repetitive network downloads.
+A standard Nuxt 4 prototype installation with Tailwind and database drivers contains ~40,000 files and weighs ~350MB. If 25 prototypes each maintained duplicate `node_modules` copies, the repository would consume over 10 GB of disk space and require repetitive network downloads.
 
-To solve this, `tc-proto-docker` leverages `pnpm` backed by the shared `pnpm_store` Docker named volume.
+To solve this, `tc-proto-docker` leverages `pnpm` backed by a shared `pnpm_store` Docker named volume.
 
-### How pnpm Inode Hard Links Work (and Why Separate Volumes Fail)
+### Understanding pnpm's Three Storage Layers
 
-Unlike `npm` or `yarn` (which duplicate package files in every project directory), `pnpm` stores every package exactly once in a global **Content-Addressable Store (CAS)**, indexed by the content checksum.
+| Layer | Container Path | Systems / C Analogy | Inode / Link Mechanics |
+| :--- | :--- | :--- | :--- |
+| **1. CAS Store** | `/pnpm_store/store/v11/files/...` | Object database (like `.git/objects`) | Content-addressed physical files; stored once. |
+| **2. Virtual Store** | `/pnpm_store/<run>/pnpm/...` | Dynamic linker structure | Per-project directory of real package files. **Hardlinked** (`link(2)`) to CAS. |
+| **3. Top-Level `node_modules`** | `/app/node_modules/vue` | Shared library symlinks (`lib.so`) | **Symlinks** (`symlink(2)`) pointing across mounts to the Virtual Store. |
 
-When a package is installed in `/app/node_modules`:
-1. `pnpm` downloads and writes the package files into `/root/.local/share/pnpm/store/v11/files/...`.
-2. `pnpm` issues a POSIX `link(2)` system call to create a **hard link** from `/app/node_modules/.pnpm/...` to the physical inode in the store.
-3. A hard link is not a copy; it is simply a second directory entry (`dirent`) pointing to the exact same physical disk blocks and filesystem inode.
+### The Linux Kernel VFS `EXDEV` Trap
 
-> [!IMPORTANT]
-> **The Cross-Device Link (`EXDEV`) Constraint**: In the Linux kernel (`fs/namei.c:vfs_link`), `link(2)` verifies that the source inode and destination directory reside on the **exact same filesystem superblock** (`inode->i_sb == dir->i_sb`). If `/app/node_modules` were mounted as a standalone anonymous volume (`- /app/node_modules`), it would have a different superblock from `pnpm_store`. The kernel would reject `link(2)` with `EXDEV` (`Invalid cross-device link`), forcing `pnpm` to print a warning and fall back to duplicating the entire store inside `/app/node_modules/.pnpm-store`.
+In POSIX filesystems and the Linux kernel (`fs/namei.c:do_linkat`), creating a hard link via `link(2)` enforces a fundamental kernel boundary:
 
-### Unifying Store and `node_modules` via `volume.subpath`
-
-By mounting both `/root/.local/share/pnpm/store` (`subpath: store`) and `/app/node_modules` (`subpath: <run>/node_modules`) from the **same** named volume (`pnpm_store`), both mount points share the identical underlying VFS superblock:
-
-```text
-Named Docker Volume: pnpm_store (Single Underlying Filesystem Superblock)
-├── store/v11/files/...
-│   └── [ Inode #849201: vue@3.5.44/dist/vue.runtime.esm-bundler.js ]
-│                 ^                                 ^
-│                 | link(2)                         | link(2)
-├── run-100/node_modules/.pnpm/             └── run-101/node_modules/.pnpm/
-    (mounted at /app/node_modules               (mounted at /app/node_modules
-     in container run-100)                       in container run-101)
+```c
+if (old_path.mnt != new_path.mnt)
+    return -EXDEV;
 ```
 
-Because `pnpm_store` houses both the central `store` and each prototype's `node_modules` subpath on a single filesystem:
-- `link(2)` succeeds across all runs with zero `EXDEV` errors.
-- Packages downloaded by `template` or `run-100` are immediately available locally to `run-101` through `run-999` without network transfers or disk duplication.
-- `/app/.nuxt` stays on a lightweight anonymous volume because Nuxt's build cache consists only of generated local files, not hard-linked store packages.
+Even if two bind mounts originate from the **exact same Docker volume** (e.g. using `volume.subpath: store` and `volume.subpath: run-100/node_modules`), Linux treats them as two distinct `vfsmount` objects. **The kernel strictly forbids hard links across mount boundaries with `EXDEV: Invalid cross-device link`.**
 
-### Subpath Initialization & The `pnpm-init` Helper
+When hardlinks fail:
+- `pnpm v12` does not crash; instead, it silently falls back to **cloning (copying)** all ~220 MB of package files per container (`Packages are cloned from the content-addressable store`).
+- If invoked without `--store-dir`, pnpm falls back to creating an isolated store at `<project>/node_modules/.pnpm-store/v11`, duplicating hundreds of megabytes per run.
 
-In Docker Engine (Moby), mounting a named volume via `volume.subpath` enforces a strict precondition: **the target subdirectory must already exist inside the volume storage backend**. If the volume is newly created or wiped (e.g. fresh clone or `make clean-all`), Docker does not automatically generate nested subdirectories and refuses to start the container:
+### The Single-Mount Solution: Unifying CAS and Virtual Store
+
+To satisfy `old_path.mnt == new_path.mnt`, the container mounts `pnpm_store` **once** at `/pnpm_store`:
 
 ```text
-Error response from daemon: cannot access path .../_data/store: lstat .../_data/store: no such file or directory
+Docker Volume: pnpm_store (Single Mount Point: /pnpm_store)
+├── corepack/                               (Shared binary cache)
+├── store/v11/files/...                     (CAS raw files)
+│     └── [ Inode #3890390: package.json ]
+│                   ^             ^
+│            link(2)|             |link(2)
+├── run-100/pnpm/───+             └── run-101/pnpm/
+│     (Virtual store)                   (Virtual store)
+│           ^                                 ^
+│           | symlink(2)                      | symlink(2)
+Container run-100: /app/node_modules   Container run-101: /app/node_modules
+(Anonymous Volume Mask)                (Anonymous Volume Mask)
 ```
 
-Furthermore, `base-proto` cannot initialize its own subpaths because its service definition already attaches `subpath: store` (a chicken-and-egg trap where container creation fails before any entrypoint can run).
+1. **Both CAS (`/pnpm_store/store`) and Virtual Store (`/pnpm_store/<run>/pnpm`) reside on `/pnpm_store`**.
+2. Because they share the identical `vfsmount`, POSIX `link(2)` succeeds natively with zero `EXDEV` errors.
+3. Direct dependencies in `/app/node_modules` point to the virtual store via **symlinks**. Symlinks (`symlink(2)`) cross mount boundaries effortlessly.
+4. Second and subsequent runs add only ~7.8 MB to the volume (strictly directory table entries and local `.bin` shims) rather than 419 MB of copied package files—a **98.2% storage reduction**.
 
-To solve this cleanly, `docker-compose.yml` provides a lightweight internal helper service:
+---
 
+## 4. Configuration Precedence & Corepack Caching
+
+### How pnpm Resolves Settings
+
+pnpm resolves its configuration options in strict hierarchical order:
+
+1. **CLI flags** (e.g. `--store-dir`, `--virtual-store-dir`)
+2. **Environment variables**
+3. **Project config** (`pnpm-workspace.yaml`, `.npmrc`)
+4. **Global config** (`~/.config/pnpm/config.yaml`)
+5. **Built-in defaults**
+
+> [!WARNING]
+> **The `command:` Flag Trap**: Placing `--store-dir` as a flag inside Compose's `command:` string only applies during normal container boot (`docker compose up`). Any one-off execution—such as `make seed` (`docker compose exec`), `make init` (`docker compose run`), or `pnpm add <pkg>`—omits the flag. Under defaults, pnpm detects cross-mount paths, drops a duplicate store inside `node_modules/.pnpm-store`, and wipes previous installations.
+
+### Environment Variable Contract (`pnpm_config_*`)
+
+To guarantee identical configuration across `up`, `run`, `exec`, and interactive shells without cluttering scripts with flags, settings are defined in Compose `environment:`:
+
+- **`pnpm v12` Requirement**: Starting in pnpm 11+, legacy `npm_config_*` prefixes are completely ignored (`undefined`). pnpm strictly requires `pnpm_config_*`.
+
+In `base-proto`:
 ```yaml
-pnpm-init:
-  profiles: ["internal"]
-  image: node:22-slim
-  volumes:
-    - pnpm_store:/pnpm_store
+environment:
+  - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+  - COREPACK_HOME=/pnpm_store/corepack
+  - pnpm_config_store_dir=/pnpm_store/store
 ```
 
-Because `pnpm-init` mounts the **root** of `pnpm_store` without any subpaths, it attaches unconditionally. The control plane (`make up`, `make up-all`, and `make init`) executes a fast (~200ms) one-liner before booting the target prototype container:
-
-```bash
-docker compose run --rm -T --no-deps pnpm-init sh -c "mkdir -p /pnpm_store/store /pnpm_store/$run/node_modules"
+In child runs:
+```yaml
+environment:
+  - pnpm_config_virtual_store_dir=/pnpm_store/run-100/pnpm
 ```
 
-This guarantees all subpaths exist prior to container attachment without hardcoding Docker volume driver paths or requiring host-level `sudo` filesystem permissions.
+### Corepack Binary Persistence
 
----
+Node's built-in `corepack` inspects the pinned `packageManager` field in `package.json` (e.g. `pnpm@12.16.1`). By default, it downloads the binary to an ephemeral container path, causing every fresh container creation or `docker compose run` step to re-download `pnpm` from the internet.
 
-## 4. Host Tooling & Corepack Considerations
-
-If you wish to run TypeScript typechecks or run developer utilities on the host machine:
-
-### Installing pnpm on the Host
-We recommend installing pnpm directly via npm rather than using Node's experimental Corepack wrapper:
-```bash
-npm install -g pnpm@12.16.1
-```
-
-### The Corepack Non-Interactive Trap
-Node.js ships with `corepack`, a tool to manage package managers. In non-interactive environments (such as CI/CD pipelines, Docker build steps, or Makefile scripts), `corepack` attempts to prompt:
-```text
-Do you want to continue? [Y/n]
-```
-Without a TTY, this prompt hangs indefinitely. To prevent this, the platform sets:
-```bash
-export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-```
-This environment variable is baked into the Dockerfile and automation scripts.
+By configuring `COREPACK_HOME=/pnpm_store/corepack`:
+- Corepack caches the downloaded binary in `/pnpm_store/corepack`.
+- Subsequent container launches execute the cached binary instantly with zero network delay.
+- `COREPACK_ENABLE_DOWNLOAD_PROMPT=0` suppresses interactive TTY confirmation prompts in automated scripts.
+- The former `pnpm-init` helper service is completely obsolete, as mounting the volume root requires no pre-existing subdirectories.
 

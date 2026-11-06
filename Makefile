@@ -12,15 +12,6 @@ init: ## Bootstrap stack when runs exist (pulls images, seeds existing runs, shu
 	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env from .env.example"; fi
 	@echo "==> Pulling base container images..."
 	@docker compose pull postgres mongo base-proto
-	@echo "==> Initializing shared pnpm storage subpaths..."
-	@dirs="/pnpm_store/store /pnpm_store/template/node_modules"; \
-	for dir in prototypes/run-*/; do \
-		if [ -d "$$dir" ]; then \
-			r=$$(basename "$$dir"); \
-			dirs="$$dirs /pnpm_store/$$r/node_modules"; \
-		fi; \
-	done; \
-	docker compose run --rm -T --no-deps pnpm-init sh -c "mkdir -p $$dirs"
 	@echo "==> Starting database engines..."
 	@docker compose up -d postgres mongo
 	@has_runs=0; \
@@ -29,7 +20,7 @@ init: ## Bootstrap stack when runs exist (pulls images, seeds existing runs, shu
 			has_runs=1; \
 			run=$$(basename "$$dir"); \
 			echo "==> Seeding $$run..."; \
-			docker compose run --rm -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 "$$run" sh -c "corepack enable && pnpm run db:seed"; \
+			docker compose run --rm "$$run" sh -c "corepack enable && pnpm run db:seed"; \
 		fi \
 	done; \
 	if [ "$$has_runs" -eq 0 ]; then \
@@ -49,18 +40,9 @@ new: ## Scaffold a new prototype run (Usage: make new RUN=100 [DB=hybrid|postgre
 up: ## Start a prototype run or template (Usage: make up RUN=100 or make up RUN=template)
 	@run="$(NORM_RUN)"; \
 	if [ -z "$$run" ]; then echo "Error: RUN is required (e.g. make up RUN=100 or make up RUN=template)" >&2; exit 1; fi; \
-	docker compose run --rm -T --no-deps pnpm-init sh -c "mkdir -p /pnpm_store/store /pnpm_store/$$run/node_modules"; \
 	docker compose --profile "$$run" up -d
 
 up-all: ## Start all prototypes simultaneously
-	@dirs="/pnpm_store/store /pnpm_store/template/node_modules"; \
-	for dir in prototypes/run-*/; do \
-		if [ -d "$$dir" ]; then \
-			r=$$(basename "$$dir"); \
-			dirs="$$dirs /pnpm_store/$$r/node_modules"; \
-		fi; \
-	done; \
-	docker compose run --rm -T --no-deps pnpm-init sh -c "mkdir -p $$dirs"; \
 	docker compose --profile all up -d
 
 down: ## Stop all running prototype containers

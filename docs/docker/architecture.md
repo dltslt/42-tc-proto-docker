@@ -92,13 +92,13 @@ services:
     command: sh -c "corepack enable && pnpm install && pnpm dev --host 0.0.0.0"
     env_file:
       - .env
+    environment:
+      - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+      - COREPACK_HOME=/pnpm_store/corepack
+      - pnpm_config_store_dir=/pnpm_store/store
     volumes:
       - /app/.nuxt
-      - type: volume
-        source: pnpm_store
-        target: /root/.local/share/pnpm/store
-        volume:
-          subpath: store
+      - pnpm_store:/pnpm_store
     depends_on:
       - postgres
       - mongo
@@ -106,9 +106,10 @@ services:
 
 - **`image: node:22-slim`**: Uses Debian `glibc` with built-in Corepack to run the exact `packageManager` (`pnpm@12.16.1`) pinned in `package.json`.
 - **`env_file: .env`**: Injects global environment variables (database credentials, default hostnames) into the container environment.
+- **`environment`**: Configures Corepack caching (`COREPACK_HOME=/pnpm_store/corepack`) and points pnpm's content-addressable storage to `/pnpm_store/store`.
 - **`volumes`**:
   - `/app/.nuxt`: Anonymous volume masking generated Nuxt build/type caches from the host filesystem.
-  - `pnpm_store` (`subpath: store`): Named volume subpath mounting the shared pnpm content-addressable storage at `/root/.local/share/pnpm/store`.
+  - `pnpm_store`: Named volume mounted once at `/pnpm_store` (housing Corepack binaries, the CAS store, and per-run virtual stores on a shared mount).
 - **`depends_on`**: Ensures database engines are started before prototype containers boot.
 
 ### Concrete Prototype Definition
@@ -125,30 +126,13 @@ When scaffolding a new run (e.g., `run-100`), the generator appends a minimal de
     environment:
       - PORT=3100
       - DB_NAME=proto_run_100
+      - pnpm_config_virtual_store_dir=/pnpm_store/run-100/pnpm
     volumes:
       - ./prototypes/run-100:/app
-      - type: volume
-        source: pnpm_store
-        target: /app/node_modules
-        volume:
-          subpath: run-100/node_modules
+      - /app/node_modules
 ```
 
-This design guarantees that each prototype inherits identical runtime dependencies, environment contracts, and network settings while remaining completely isolated in terms of source code (`./prototypes/run-100`), dependency tree (`subpath: run-100/node_modules` hard-linked to `subpath: store` on the same `pnpm_store` volume), listening port (`3100`), and logical database (`proto_run_100`).
-
-### Storage Initialization Helper (`pnpm-init`)
-
-Because Docker's `volume.subpath` mount option requires target directories inside the named volume to exist beforehand, `docker-compose.yml` includes an internal lifecycle helper:
-
-```yaml
-  pnpm-init:
-    profiles: ["internal"]
-    image: node:22-slim
-    volumes:
-      - pnpm_store:/pnpm_store
-```
-
-It mounts the volume root (no subpaths) and is invoked automatically by the Makefile control plane (`make up`, `make up-all`, `make init`) to provision missing directory structures before any subpath-dependent service container starts.
+This design guarantees that each prototype inherits identical runtime dependencies, environment contracts, and network settings while remaining completely isolated in terms of source code (`./prototypes/run-100`), listening port (`3100`), and logical database (`proto_run_100`). Dependency packages are hardlinked (`link(2)`) from `/pnpm_store/store` directly into `/pnpm_store/run-100/pnpm`, eliminating disk duplication while keeping `/app/node_modules` isolated from the host.
 
 ---
 

@@ -64,7 +64,6 @@ make up RUN=100
 # Or start the template reference container:
 make up RUN=template
 ```
-- Automatically provisions missing `pnpm_store` subpaths (`store` and `<run>/node_modules`) via `pnpm-init` before starting containers.
 - Activates Docker Compose profile `run-XXX`.
 - Automatically starts `postgres` and `mongo` if not already running.
 - Runs detached in the background.
@@ -76,7 +75,6 @@ Starts all registered prototype containers simultaneously.
 ```bash
 make up-all
 ```
-- Automatically provisions missing `pnpm_store` subpaths for all prototypes via `pnpm-init`.
 - Activates Docker Compose profile `all`.
 
 ---

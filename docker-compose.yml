@@ -28,21 +28,11 @@ services:
       - mongo_data:/data/db
 
   # ============================================================================
-  # VOLUME INITIALIZER (Internal Lifecycle Helper)
-  # ============================================================================
-  # Mounts the root of pnpm_store to provision subpath directories before
-  # services with volume.subpath mount them (prevents daemon lstat errors).
-  pnpm-init:
-    profiles: ["internal"]
-    image: node:22-slim
-    volumes:
-      - pnpm_store:/pnpm_store
-
-  # ============================================================================
   # BASE PROTOTYPE DEFINITION (Inherited by all prototype runs)
   # ============================================================================
   # Corepack Note: Node's built-in Corepack reads packageManager from package.json
   # (e.g. pnpm@12.16.1) and dynamically installs/runs that exact pinned binary.
+  # Persistent COREPACK_HOME on pnpm_store eliminates repeated binary downloads.
   # Using node:22-slim (Debian glibc) prevents musl/glibc native linker conflicts.
   # Abstract service: profiles: ["base"] keeps Compose from booting an empty container
   # for this template during normal `up` commands; child runs inherit it via extends.
@@ -50,16 +40,16 @@ services:
     profiles: ["base"]
     image: node:22-slim
     working_dir: /app
-    command: sh -c "corepack enable && pnpm install --store-dir /root/.local/share/pnpm/store && pnpm dev --host 0.0.0.0"
+    command: sh -c "corepack enable && pnpm install && pnpm dev --host 0.0.0.0"
     env_file:
       - .env
+    environment:
+      - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+      - COREPACK_HOME=/pnpm_store/corepack
+      - pnpm_config_store_dir=/pnpm_store/store
     volumes:
       - /app/.nuxt
-      - type: volume
-        source: pnpm_store
-        target: /root/.local/share/pnpm/store
-        volume:
-          subpath: store
+      - pnpm_store:/pnpm_store
     depends_on:
       - postgres
       - mongo
@@ -76,13 +66,10 @@ services:
     environment:
       - PORT=3000
       - DB_NAME=proto_template
+      - pnpm_config_virtual_store_dir=/pnpm_store/template/pnpm
     volumes:
       - ./prototypes/template:/app
-      - type: volume
-        source: pnpm_store
-        target: /app/node_modules
-        volume:
-          subpath: template/node_modules
+      - /app/node_modules
 
 volumes:
   postgres_data:
